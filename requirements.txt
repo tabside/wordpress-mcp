@@ -1,0 +1,9 @@
+# Exakt gepinnt (Stand 2026-10-25, mit diesen Versionen getestet), damit ein Build
+# reproduzierbar ist. Updates bewusst per Commit (Tests laufen lassen).
+mcp==2.3.0
+starlette==1.10.0
+uvicorn==0.54.0
+httpx==0.28.1
+python-multipart==0.0.32
+mammoth==1.13.0
+beautifulsoup4==4.15.0

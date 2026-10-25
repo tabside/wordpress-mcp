@@ -1,0 +1,52 @@
+name: Plugin-ZIP bauen
+
+# Bei jedem Push auf main: ZIP als Actions-Artefakt (zum Testen).
+# Bei einem Tag plugin-v<Version> (muss zur Version im Plugin-Header passen): GitHub-Release mit ZIP,
+# das auf Kundenseiten über Plugins > Installieren > Plugin hochladen installiert wird.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "plugin/tabside-mcp/**"
+      - ".github/workflows/plugin-release.yml"
+    tags: ["plugin-v*"]
+  workflow_dispatch: {}
+
+jobs:
+  zip:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version prüfen
+        id: version
+        run: |
+          version=$(sed -n 's/^ \* Version: *\(.*\)$/\1/p' plugin/tabside-mcp/tabside-mcp.php | tr -d '[:space:]')
+          constant=$(sed -n "s/^define( 'TABSIDE_MCP_VERSION', '\(.*\)' );$/\1/p" plugin/tabside-mcp/tabside-mcp.php)
+          test -n "$version" && test "$version" = "$constant"
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then test "${GITHUB_REF_NAME}" = "plugin-v${version}"; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: ZIP bauen (Commit-Hash eintragen)
+        run: |
+          mkdir -p build
+          cp -r plugin/tabside-mcp build/tabside-mcp
+          sed -i "s/define( 'TABSIDE_MCP_COMMIT', 'dev' );/define( 'TABSIDE_MCP_COMMIT', '${GITHUB_SHA::12}' );/" build/tabside-mcp/tabside-mcp.php
+          grep -q "TABSIDE_MCP_COMMIT', '${GITHUB_SHA::12}'" build/tabside-mcp/tabside-mcp.php
+          find build/tabside-mcp -name '*.php' -print0 | xargs -0 -n1 php -l
+          cd build && zip -qr "tabside-mcp-${{ steps.version.outputs.version }}.zip" tabside-mcp
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tabside-mcp-${{ steps.version.outputs.version }}
+          path: build/tabside-mcp-${{ steps.version.outputs.version }}.zip
+
+      - name: GitHub-Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: tabside-mcp ${{ steps.version.outputs.version }}
+          files: build/tabside-mcp-${{ steps.version.outputs.version }}.zip

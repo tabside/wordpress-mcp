@@ -1,0 +1,41 @@
+# wordpress-mcp: ein Container, SQLite (OAuth-Clients und Tokens) im Volume "data".
+# Portainer: Git-Stack aus diesem Repository (Build-Methode Repository), die Werte aus
+# .env.example als Stack-Umgebungsvariablen. Die Seiten samt Anwendungspasswörtern stehen
+# nur in WP_SITES (Stack-Variable), nie im Repo.
+# Veröffentlicht wird nur der API-Port, TLS macht der Reverse-Proxy (NPM).
+#
+# cap_drop/security_opt sind bewusst nicht gesetzt: Portainer lehnt sie für Nicht-Admin-
+# Benutzer ab (wie bei zammad-mcp). Der Container läuft trotzdem als uid 1000 mit
+# read-only Root-Dateisystem.
+
+services:
+  wordpress-mcp:
+    image: ghcr.io/tabside/wordpress-mcp:${WORDPRESS_MCP_TAG:-latest}
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+      GATEWAY_USERS: ${GATEWAY_USERS}
+      WP_SITES: ${WP_SITES}
+      SERVICE_NAME: ${SERVICE_NAME:-WordPress MCP}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-*}
+      ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL:-3600}
+      REFRESH_TOKEN_TTL: ${REFRESH_TOKEN_TTL:-2592000}
+      TOOL_CALLS_PER_MINUTE: ${TOOL_CALLS_PER_MINUTE:-120}
+      WP_TIMEOUT: ${WP_TIMEOUT:-60}
+      MAX_FILE_MB: ${MAX_FILE_MB:-20}
+    ports:
+      - "${MCP_BIND_ADDR:-127.0.0.1}:${MCP_HOST_PORT:-8440}:8000"
+    volumes:
+      - data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  data:

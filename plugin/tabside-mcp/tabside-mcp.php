@@ -1,0 +1,27 @@
+<?php
+/**
+ * Plugin Name:       tabside MCP
+ * Description:       Abilities für Beiträge, Seiten und Medien, über den WordPress MCP Adapter als MCP-Server "tabside" erreichbar. Nur für den Benutzer "claude-mcp".
+ * Version:           1.0.0
+ * Requires PHP:      7.4
+ * Author:            KDT Solutions
+ * License:           GPL-2.0-or-later
+ * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
+ * Text Domain:       tabside-mcp
+ *
+ * @package tabside-mcp
+ */
+
+defined( 'ABSPATH' ) || exit;
+
+define( 'TABSIDE_MCP_VERSION', '1.0.0' );
+// Wird beim Bau des ZIP-Release durch den Commit-Hash ersetzt (.github/workflows/plugin-release.yml).
+define( 'TABSIDE_MCP_COMMIT', 'dev' );
+define( 'TABSIDE_MCP_MIN_WP', '6.9' );
+define( 'TABSIDE_MCP_DIR', plugin_dir_path( __FILE__ ) );
+
+require_once TABSIDE_MCP_DIR . 'includes/class-tabside-mcp-plugin.php';
+require_once TABSIDE_MCP_DIR . 'includes/class-tabside-mcp-backups.php';
+require_once TABSIDE_MCP_DIR . 'includes/class-tabside-mcp-abilities.php';
+
+Tabside_MCP_Plugin::boot();
