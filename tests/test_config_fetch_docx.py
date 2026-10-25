@@ -72,6 +72,12 @@ def test_sites_from_json(base_env, tmp_path):
     assert "datei" in Settings.load().sites
 
 
+def test_no_sites_is_allowed(base_env):
+    base_env.delenv("WP_SITE_KUNDE_URL")
+    base_env.delenv("WP_SITE_KUNDE_APP_PASSWORD")
+    assert Settings.load().sites == {}
+
+
 def test_users_required_and_validated(base_env):
     base_env.setenv("GATEWAY_USERS", "kim=klartext")
     with pytest.raises(ConfigError, match="kim"):

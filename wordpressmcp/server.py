@@ -206,6 +206,8 @@ def run_api(settings: Settings) -> None:
         "wordpress-mcp %s (%s) on %s:%s, public URL %s, sites %s, users %s",
         __version__, GIT_SHA[:12], settings.host, settings.port, settings.public_base_url, ",".join(settings.sites), len(settings.users),
     )
+    if not settings.sites:
+        logger.warning("no WordPress site configured (WP_SITES), only list_sites and docx_to_content are useful")
     uvicorn.run(
         build_app(build_services(settings)),
         host=settings.host,

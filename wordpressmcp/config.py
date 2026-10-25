@@ -248,9 +248,8 @@ class Settings:
         users = load_users(users_raw)
         if not users:
             raise ConfigError("GATEWAY_USERS contains no user")
+        # Without sites the gateway still starts (login, list_sites, docx_to_content); run_api warns.
         sites = load_sites()
-        if not sites:
-            raise ConfigError("no site configured (WP_SITES or WP_SITE_<KEY>_URL and WP_SITE_<KEY>_APP_PASSWORD)")
 
         return Settings(
             public_base_url=public_base_url,

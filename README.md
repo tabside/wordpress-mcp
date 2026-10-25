@@ -73,7 +73,7 @@ Das Image wird bei jedem Push auf `main` von GitHub Actions gebaut (Lint, Tests,
 
 1. Login-Benutzer anlegen: `docker run --rm -i ghcr.io/tabside/wordpress-mcp wordpressmcp hash-password` (Passwort mindestens 12 Zeichen eingeben), Ausgabe als `GATEWAY_USERS=kim=<hash>` eintragen. Mehrere Benutzer mit Komma trennen.
 2. In Portainer **Stacks > Add stack > Build method: Repository**, dieses Repo, Branch `main`, Compose-Pfad `docker-compose.yml`. Unter Environment variables die Werte aus `.env.example` setzen. Die Anwendungspasswörter stehen nur dort in `WP_SITES`, nie im Repo.
-3. DNS-Eintrag für die Subdomain und Proxy-Host im Nginx Proxy Manager auf `<Host-IP>:8440` (bzw. `MCP_HOST_PORT`) mit TLS-Zertifikat, `MCP_BIND_ADDR` auf die Host-IP setzen, über die NPM den Container erreicht.
+3. DNS-Eintrag für die Subdomain und Proxy-Host im Nginx Proxy Manager auf `<Host-IP>:8440` (bzw. `MCP_HOST_PORT`) mit TLS-Zertifikat, `MCP_BIND_ADDR` auf die Host-IP setzen, über die NPM den Container erreicht. Unter einem Pfad eines bestehenden Hosts siehe [Reverse-Proxy mit Pfad](#reverse-proxy-mit-pfad).
 4. Prüfen:
 
 ```bash
@@ -83,13 +83,32 @@ curl -s https://wordpress-mcp.example.com/.well-known/oauth-authorization-server
 curl -si -X POST https://wordpress-mcp.example.com/mcp   # 401 mit WWW-Authenticate: Bearer resource_metadata=...
 ```
 
+### Reverse-Proxy mit Pfad
+
+Bei `PUBLIC_BASE_URL=https://mcp.example.com/wordpress` müssen der Pfad `/wordpress/` **ohne Umschreiben** und die drei Well-known-Pfade mit dem Suffix `/wordpress` an den Container gehen (Advanced Config des Proxy-Hosts im Nginx Proxy Manager):
+
+```nginx
+location ~ ^(/wordpress(/|$)|/\.well-known/(oauth-authorization-server|openid-configuration)/wordpress$|/\.well-known/oauth-protected-resource/wordpress/mcp$) {
+    proxy_pass http://<Host-IP>:8440;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Connection "";
+    proxy_buffering off;
+    proxy_read_timeout 300s;
+    client_max_body_size 32m;
+}
+```
+
 ### Variablen
 
 | Variable | Standard | Bedeutung |
 | --- | --- | --- |
 | `PUBLIC_BASE_URL` | – | Öffentliche URL, z.B. `https://wordpress-mcp.example.com` |
 | `GATEWAY_USERS` | – | `name=<hash>`, kommagetrennt (`wordpressmcp hash-password`) |
-| `WP_SITES` | – | JSON-Liste der Seiten, siehe unten. Alternativ `WP_SITES_FILE` (Pfad, z.B. Docker-Secret) oder pro Seite `WP_SITE_<KEY>_URL`, `_APP_PASSWORD` (bzw. `_APP_PASSWORD_FILE`), `_USER`, `_LABEL`, `_ENDPOINT` |
+| `WP_SITES` | leer | JSON-Liste der Seiten, siehe unten. Leer startet das Gateway trotzdem (Warnung im Log). Alternativ `WP_SITES_FILE` (Pfad, z.B. Docker-Secret) oder pro Seite `WP_SITE_<KEY>_URL`, `_APP_PASSWORD` (bzw. `_APP_PASSWORD_FILE`), `_USER`, `_LABEL`, `_ENDPOINT` |
 | `SERVICE_NAME` | `WordPress MCP` | Name auf Login- und Kontoseite |
 | `ACCESS_TOKEN_TTL` / `REFRESH_TOKEN_TTL` | 3600 / 2592000 | Gültigkeit in Sekunden |
 | `TOOL_CALLS_PER_MINUTE` | 120 | pro Benutzer |
