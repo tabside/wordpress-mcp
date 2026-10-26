@@ -1143,6 +1143,26 @@ final class Tabside_MCP_Abilities {
 			'url' => wp_get_attachment_url( $thumb ),
 		) : null;
 		$out['backups']        = Tabside_MCP_Backups::summary( $post->ID );
+		$out['meta']           = self::meta_of( $post->ID );
+		return $out;
+	}
+
+	/**
+	 * Zusatzfelder (Post-Meta) eines Beitrags, nur lesend, z.B. Theme-Optionen.
+	 * Interne und grosse Felder werden ausgelassen, Werte auf 200 Zeichen gekürzt.
+	 */
+	private static function meta_of( $post_id ) {
+		$skip = array( '_edit_lock', '_edit_last', '_thumbnail_id', '_elementor_data', '_elementor_css', '_elementor_element_cache', '_elementor_page_assets', Tabside_MCP_Backups::META_KEY );
+		$out  = array();
+		foreach ( (array) get_post_meta( $post_id ) as $key => $values ) {
+			if ( in_array( $key, $skip, true ) || 0 === strpos( $key, '_wp_old_' ) ) {
+				continue;
+			}
+			$value       = isset( $values[0] ) ? maybe_unserialize( $values[0] ) : '';
+			$text        = is_scalar( $value ) ? (string) $value : wp_json_encode( $value );
+			$out[ $key ] = mb_strlen( (string) $text ) > 200 ? mb_substr( (string) $text, 0, 200 ) . ' …' : $text;
+		}
+		ksort( $out );
 		return $out;
 	}
 
