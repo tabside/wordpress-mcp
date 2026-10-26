@@ -137,7 +137,7 @@ final class Tabside_MCP_Updater {
 			'name'          => 'tabside MCP',
 			'slug'          => 'tabside-mcp',
 			'version'       => $release['version'],
-			'author'        => 'KDT Solutions',
+			'author'        => 'tabside',
 			'homepage'      => 'https://github.com/' . self::REPO,
 			'requires'      => TABSIDE_MCP_MIN_WP,
 			'requires_php'  => '7.4',

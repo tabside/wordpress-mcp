@@ -2,10 +2,10 @@
 /**
  * Plugin Name:       tabside MCP
  * Description:       Beiträge, Seiten und Medien für das WordPress-MCP-Gateway (Abilities API von WordPress 6.9+). Nur mit Anwendungspasswort.
- * Version:           1.3.0
+ * Version:           1.3.1
  * Update URI:        https://github.com/tabside/wordpress-mcp
  * Requires PHP:      7.4
- * Author:            KDT Solutions
+ * Author:            tabside
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       tabside-mcp
@@ -15,7 +15,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TABSIDE_MCP_VERSION', '1.3.0' );
+define( 'TABSIDE_MCP_VERSION', '1.3.1' );
 // Wird beim Bau des ZIP-Release durch den Commit-Hash ersetzt (.github/workflows/plugin-release.yml).
 define( 'TABSIDE_MCP_COMMIT', 'dev' );
 define( 'TABSIDE_MCP_MIN_WP', '6.9' );
