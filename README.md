@@ -64,7 +64,9 @@ Voraussetzungen: WordPress **6.9 oder neuer** (Abilities API im Core), HTTPS (so
 
 Bei WordPress unter 6.9 bleibt das Plugin inaktiv und zeigt Administratoren einen Hinweis. Auf einen einzigen Benutzer beschränken lässt es sich mit `define( 'TABSIDE_MCP_USER', '<login>' );` in der `wp-config.php` oder dem Filter `tabside_mcp_allowed_user`.
 
-Ein ZIP entsteht bei jedem Tag `plugin-v<Version>` (muss zur Version im Plugin-Header passen) als GitHub-Release, bei jedem Push auf `main` zusätzlich als Actions-Artefakt. Der Commit-Hash steht danach in `get_version`.
+**Updates kommen automatisch.** Das Plugin hat ein eigenes `Update URI` und fragt alle 6 Stunden die GitHub-Releases dieses Repos ab (Tag `plugin-v<Version>`, Anhang `tabside-mcp-<Version>.zip`). Eine neuere Version erscheint wie jedes andere Update unter Plugins bzw. Dashboard > Aktualisierungen und wird von WordPress automatisch installiert (WP-Cron, mit der eingebauten Absturzprüfung und Rückfall auf die alte Version). Nur Hinweis statt automatischer Installation: `define( 'TABSIDE_MCP_DISABLE_AUTO_UPDATE', true );` in der `wp-config.php`. Die Updatefunktion gibt es ab Version 1.3.0; ältere Versionen einmal von Hand ersetzen.
+
+**Neue Version ausliefern:** Version im Plugin-Header und in `TABSIDE_MCP_VERSION` erhöhen und auf `main` pushen. Der Workflow "Plugin-ZIP bauen" legt dann das Release `plugin-v<Version>` mit dem ZIP an (Commit-Hash steht danach in `get_version`). Ohne Versionserhöhung wird nur ein Actions-Artefakt gebaut, kein Update verteilt.
 
 ## Gateway betreiben
 

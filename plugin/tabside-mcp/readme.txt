@@ -1,7 +1,7 @@
 === tabside MCP ===
 Requires at least: 6.9
 Requires PHP: 7.4
-Stable tag: 1.2.0
+Stable tag: 1.3.0
 License: GPLv2 or later
 
 Beiträge, Seiten und Medien für das WordPress-MCP-Gateway.
@@ -25,9 +25,14 @@ Keine Abilities für Plugins, Benutzer, Einstellungen oder Dateisystem, kein end
 1. Dieses Plugin hochladen und aktivieren.
 2. Beim gewünschten Benutzer unter Profil ein Anwendungspasswort erzeugen.
 
+Updates kommen automatisch aus den GitHub-Releases von tabside/wordpress-mcp.
+
 Bei WordPress unter 6.9 zeigt das Plugin Administratoren einen Hinweis.
 
 == Changelog ==
+
+= 1.3.0 =
+* Automatische Updates aus den GitHub-Releases (abschaltbar mit TABSIDE_MCP_DISABLE_AUTO_UPDATE).
 
 = 1.2.0 =
 * Nicht mehr auf den Benutzer claude-mcp beschränkt: jeder Benutzer mit Anwendungspasswort und Rechten.
