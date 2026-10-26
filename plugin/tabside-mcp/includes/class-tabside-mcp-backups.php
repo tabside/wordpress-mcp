@@ -30,6 +30,7 @@ final class Tabside_MCP_Backups {
 			'date_gmt'       => $post->post_date_gmt,
 			'slug'           => $post->post_name,
 			'featured_media' => (int) get_post_thumbnail_id( $post ),
+			'hide_featured_on_single' => Tabside_MCP_Abilities::get_hide_featured( $post->ID ),
 		);
 		if ( 'post' === $post->post_type ) {
 			$fields['categories'] = array_map( 'intval', wp_get_post_categories( $post->ID ) );

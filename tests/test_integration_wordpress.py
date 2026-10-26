@@ -181,3 +181,16 @@ def test_block_markup_survives_saving(wp):
     names = re.findall(r"<!-- wp:([a-z-]+)", post["content"])
     assert set(names) == {"paragraph", "heading", "list", "list-item", "table"}
     ok(call(client, access, "post_trash", {"site": "test", "id": post["id"], "confirm": True}))
+
+
+def test_hide_featured_on_single(wp):
+    client, access = wp
+    post = ok(call(client, access, "post_create", {"site": "test", "title": "Bild ausblenden", "hide_featured_on_single": True, "confirm": True}))["post"]
+    assert post["hide_featured_on_single"] is True and post["meta"]["blockchain_hide_single_featured"] == "1"
+    prev = ok(call(client, access, "post_update", {"site": "test", "id": post["id"], "hide_featured_on_single": False}))
+    assert prev["preview"]["changes"]["hide_featured_on_single"] == {"old": True, "new": False}
+    upd = ok(call(client, access, "post_update", {"site": "test", "id": post["id"], "hide_featured_on_single": False, "confirm": True}))["post"]
+    assert upd["hide_featured_on_single"] is False and "blockchain_hide_single_featured" not in upd["meta"]
+    rb = ok(call(client, access, "post_rollback", {"site": "test", "id": post["id"], "confirm": True}))["post"]
+    assert rb["hide_featured_on_single"] is True
+    ok(call(client, access, "post_trash", {"site": "test", "id": post["id"], "confirm": True}))

@@ -210,7 +210,8 @@ def register_tools(mcp: MCPServer, runner: ToolRunner, settings: Settings) -> No
             "Legt einen Beitrag (type=post) oder eine Seite (type=page) an. content als HTML oder Gutenberg-Blöcke (z.B. aus docx_to_content). "
             "status: draft (Standard), pending, publish, future, private; publish mit Datum in der Zukunft wird automatisch future (geplant). "
             "date: YYYY-MM-DD HH:MM in der Zeitzone der Seite oder ISO 8601. categories als ID, Slug oder Name (müssen existieren), "
-            "tags als ID oder Name (fehlende werden angelegt), featured_media = Bild-ID aus der Mediathek." + CONFIRM_DOC
+            "tags als ID oder Name (fehlende werden angelegt), featured_media = Bild-ID aus der Mediathek, "
+            "hide_featured_on_single=true blendet das Beitragsbild auf der Beitragsseite aus (Theme-Option, z.B. Blockchain)." + CONFIRM_DOC
         ),
         annotations=WRITE,
     )
@@ -226,11 +227,13 @@ def register_tools(mcp: MCPServer, runner: ToolRunner, settings: Settings) -> No
         featured_media: int | None = None,
         excerpt: str | None = None,
         slug: str | None = None,
+        hide_featured_on_single: bool | None = None,
         confirm: bool = False,
     ) -> dict[str, Any]:
         args = {
             "type": type, "title": title, "content": content, "status": status, "date": date, "categories": categories,
-            "tags": tags, "featured_media": featured_media, "excerpt": excerpt, "slug": slug, "confirm": confirm,
+            "tags": tags, "featured_media": featured_media, "excerpt": excerpt, "slug": slug,
+            "hide_featured_on_single": hide_featured_on_single, "confirm": confirm,
         }
         return await runner.write(site, "post_create", args)
 
@@ -253,11 +256,13 @@ def register_tools(mcp: MCPServer, runner: ToolRunner, settings: Settings) -> No
         featured_media: int | None = None,
         excerpt: str | None = None,
         slug: str | None = None,
+        hide_featured_on_single: bool | None = None,
         confirm: bool = False,
     ) -> dict[str, Any]:
         args = {
             "id": id, "title": title, "content": content, "status": status, "date": date, "categories": categories,
-            "tags": tags, "featured_media": featured_media, "excerpt": excerpt, "slug": slug, "confirm": confirm,
+            "tags": tags, "featured_media": featured_media, "excerpt": excerpt, "slug": slug,
+            "hide_featured_on_single": hide_featured_on_single, "confirm": confirm,
         }
         return await runner.write(site, "post_update", args)
 

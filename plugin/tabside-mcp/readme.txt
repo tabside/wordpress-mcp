@@ -1,7 +1,7 @@
 === tabside MCP ===
 Requires at least: 6.9
 Requires PHP: 7.4
-Stable tag: 1.4.0
+Stable tag: 1.5.0
 License: GPLv2 or later
 
 Beiträge, Seiten und Medien für das WordPress-MCP-Gateway.
@@ -30,6 +30,9 @@ Updates kommen automatisch aus den GitHub-Releases von tabside/wordpress-mcp.
 Bei WordPress unter 6.9 zeigt das Plugin Administratoren einen Hinweis.
 
 == Changelog ==
+
+= 1.5.0 =
+* post-create/post-update: hide_featured_on_single blendet das Beitragsbild auf der Beitragsseite aus (Theme Blockchain, Schlüssel per Filter tabside_mcp_hide_featured_meta_key anpassbar). Wird gesichert und beim Rollback wiederhergestellt.
 
 = 1.4.0 =
 * post-get zeigt die Zusatzfelder (Post-Meta) eines Beitrags, z.B. Theme-Optionen.

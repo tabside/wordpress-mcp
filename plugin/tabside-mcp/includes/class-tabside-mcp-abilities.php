@@ -122,6 +122,10 @@ final class Tabside_MCP_Abilities {
 				'type'        => 'string',
 				'description' => 'Titelform (URL-Teil).',
 			),
+			'hide_featured_on_single' => array(
+				'type'        => 'boolean',
+				'description' => 'Beitragsbild auf der Beitragsseite ausblenden (Theme-Option, z.B. Blockchain), true oder false.',
+			),
 		);
 		$id      = array(
 			'type'        => 'integer',
@@ -510,7 +514,7 @@ final class Tabside_MCP_Abilities {
 			'date'    => isset( $changes['date'] ) ? $changes['date']['local'] : 'jetzt',
 			'content' => self::text_preview( $input['content'] ?? '' ),
 		);
-		foreach ( array( 'categories', 'tags', 'featured_media', 'excerpt', 'slug' ) as $key ) {
+		foreach ( array( 'categories', 'tags', 'featured_media', 'excerpt', 'slug', 'hide_featured_on_single' ) as $key ) {
 			if ( array_key_exists( $key, $changes ) ) {
 				$preview[ $key ] = self::describe( $key, $changes[ $key ] );
 			}
@@ -789,6 +793,9 @@ final class Tabside_MCP_Abilities {
 		} else {
 			delete_post_thumbnail( $post->ID );
 		}
+		if ( isset( $target['hide_featured_on_single'] ) ) {
+			self::set_hide_featured( $post->ID, (bool) $target['hide_featured_on_single'] );
+		}
 		return array(
 			'confirmed'        => true,
 			'restored_backup'  => $backup['id'],
@@ -866,6 +873,9 @@ final class Tabside_MCP_Abilities {
 				$changes[ $key ] = (string) $input[ $key ];
 			}
 		}
+		if ( isset( $input['hide_featured_on_single'] ) ) {
+			$changes['hide_featured_on_single'] = (bool) $input['hide_featured_on_single'];
+		}
 		return $changes;
 	}
 
@@ -916,7 +926,30 @@ final class Tabside_MCP_Abilities {
 				delete_post_thumbnail( $post_id );
 			}
 		}
+		if ( isset( $changes['hide_featured_on_single'] ) ) {
+			self::set_hide_featured( $post_id, $changes['hide_featured_on_single'] );
+		}
 		return true;
+	}
+
+	/**
+	 * Meta-Schlüssel der Theme-Option "Beitragsbild auf der Beitragsseite ausblenden".
+	 * Standard: Theme Blockchain (CSSIgniter), anpassbar mit dem Filter tabside_mcp_hide_featured_meta_key.
+	 */
+	public static function hide_featured_key() {
+		return (string) apply_filters( 'tabside_mcp_hide_featured_meta_key', 'blockchain_hide_single_featured' );
+	}
+
+	public static function get_hide_featured( $post_id ) {
+		return '1' === (string) get_post_meta( $post_id, self::hide_featured_key(), true );
+	}
+
+	private static function set_hide_featured( $post_id, $hide ) {
+		if ( $hide ) {
+			update_post_meta( $post_id, self::hide_featured_key(), '1' );
+		} else {
+			delete_post_meta( $post_id, self::hide_featured_key() );
+		}
 	}
 
 	/**
@@ -1142,6 +1175,7 @@ final class Tabside_MCP_Abilities {
 			'id'  => $thumb,
 			'url' => wp_get_attachment_url( $thumb ),
 		) : null;
+		$out['hide_featured_on_single'] = self::get_hide_featured( $post->ID );
 		$out['backups']        = Tabside_MCP_Backups::summary( $post->ID );
 		$out['meta']           = self::meta_of( $post->ID );
 		return $out;
