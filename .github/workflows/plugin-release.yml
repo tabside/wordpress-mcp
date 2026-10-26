@@ -1,25 +1,30 @@
 name: Plugin-ZIP bauen
 
-# Bei jedem Push auf main, der das Plugin ändert: ZIP bauen. Gibt es zur Version im Plugin-Header
-# noch kein Release plugin-v<Version>, wird es mit dem ZIP angelegt. Die installierten Plugins
-# holen es sich darüber als automatisches Update (includes/class-tabside-mcp-updater.php).
+# Nach jedem erfolgreichen Testlauf eines Pushs auf main (Unit- und Integrationstests gegen echtes
+# WordPress): ZIP bauen. Gibt es zur Version im Plugin-Header noch kein Release plugin-v<Version>,
+# wird es mit dem ZIP angelegt. Die installierten Plugins holen es sich darüber als automatisches
+# Update (includes/class-tabside-mcp-updater.php), darum erst nach grünen Tests.
 # Für ein neues Update also im Plugin-Header und in TABSIDE_MCP_VERSION die Version erhöhen.
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Test, build and publish Docker image"]
+    types: [completed]
     branches: [main]
-    paths:
-      - "plugin/tabside-mcp/**"
-      - ".github/workflows/plugin-release.yml"
   workflow_dispatch: {}
 
 jobs:
   zip:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
 
       - name: Version prüfen
         id: version
@@ -41,8 +46,8 @@ jobs:
         run: |
           mkdir -p build
           cp -r plugin/tabside-mcp build/tabside-mcp
-          sed -i "s/define( 'TABSIDE_MCP_COMMIT', 'dev' );/define( 'TABSIDE_MCP_COMMIT', '${GITHUB_SHA::12}' );/" build/tabside-mcp/tabside-mcp.php
-          grep -q "TABSIDE_MCP_COMMIT', '${GITHUB_SHA::12}'" build/tabside-mcp/tabside-mcp.php
+          sed -i "s/define( 'TABSIDE_MCP_COMMIT', 'dev' );/define( 'TABSIDE_MCP_COMMIT', '${SHA::12}' );/" build/tabside-mcp/tabside-mcp.php
+          grep -q "TABSIDE_MCP_COMMIT', '${SHA::12}'" build/tabside-mcp/tabside-mcp.php
           find build/tabside-mcp -name '*.php' -print0 | xargs -0 -n1 php -l
           cd build && zip -qr "tabside-mcp-${{ steps.version.outputs.version }}.zip" tabside-mcp
 
@@ -56,7 +61,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: plugin-v${{ steps.version.outputs.version }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ env.SHA }}
           name: tabside-mcp ${{ steps.version.outputs.version }}
-          body: "tabside-mcp ${{ steps.version.outputs.version }} (Commit ${{ github.sha }}). Installierte Plugins holen sich dieses Release als automatisches Update."
+          body: "tabside-mcp ${{ steps.version.outputs.version }} (Commit ${{ env.SHA }}). Installierte Plugins holen sich dieses Release als automatisches Update."
           files: build/tabside-mcp-${{ steps.version.outputs.version }}.zip

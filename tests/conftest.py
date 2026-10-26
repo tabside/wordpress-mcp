@@ -16,6 +16,7 @@ from starlette.testclient import TestClient
 from wordpressmcp.config import Settings
 from wordpressmcp.crypto import hash_password
 from wordpressmcp.server import build_app, build_services
+from wordpressmcp.wordpress import READ_ONLY as GATEWAY_READ_ONLY
 
 BASE = "http://localhost"
 PASSWORD = "correct horse battery"
@@ -26,12 +27,14 @@ REDIRECT = "https://claude.ai/api/mcp/auth_callback"
 class FakeWordPress:
     """Core REST endpoint /wp-json/wp-abilities/v1/abilities/tabside/<name>/run with the plugin's abilities."""
 
-    READ_ONLY = {"get-version", "post-list", "post-get", "category-list", "tag-list", "media-list"}
+    READ_ONLY = {name.replace("_", "-") for name in GATEWAY_READ_ONLY}
 
     def __init__(self):
         self.calls: list[tuple[str, dict]] = []
         self.requests: list[httpx.Request] = []
         self.reject_auth = False
+        self.missing: set[str] = set()  # abilities not registered (e.g. Elementor inactive)
+        self.results: dict[str, object] = {}  # name -> fixed response (dict) or (status, body)
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
@@ -43,6 +46,8 @@ class FakeWordPress:
         if request.url.host != "kunde.example.com" or not request.url.path.startswith(prefix) or not request.url.path.endswith("/run"):
             return httpx.Response(404, json={"code": "rest_no_route", "message": "No route was found matching the URL and request method.", "data": {"status": 404}})
         slug = request.url.path[len(prefix):-len("/run")]
+        if slug in self.missing:
+            return httpx.Response(404, json={"code": "rest_ability_not_found", "message": "Ability not found.", "data": {"status": 404}})
         expected = "GET" if slug in self.READ_ONLY else "POST"
         if request.method != expected:
             return httpx.Response(405, json={"code": "rest_ability_invalid_method", "message": "wrong method", "data": {"status": 405}})
@@ -52,7 +57,10 @@ class FakeWordPress:
             args = json.loads(request.content).get("input") or {}
         name = "tabside-" + slug
         self.calls.append((name, args))
-        result = self.tool(name, args)
+        fixed = self.results.get(name)
+        if isinstance(fixed, tuple):
+            return httpx.Response(fixed[0], json=fixed[1])
+        result = fixed if fixed is not None else self.tool(name, args)
         if isinstance(result, str):
             return httpx.Response(422, json={"code": "tabside_mcp_error", "message": result, "data": {"status": 422}})
         return httpx.Response(200, json=result)
@@ -77,7 +85,8 @@ class FakeWordPress:
             return {"id": int(args["id"]), "title": "Hallo", "content": "<p>x</p>", "backups": []}
         if name == "tabside-post-list":
             return {"total": 1, "page": 1, "pages": 1, "posts": [{"id": 1, "title": "Hallo"}]}
-        return f"unknown tool {name}"
+        # All other abilities: echo the input like a preview or a confirmed result.
+        return {"confirmed": bool(args.get("confirm")), "ability": name, "echo": args}
 
 
 def _parse_php_query(items) -> dict:

@@ -155,10 +155,11 @@ def test_tools_list(gateway, access):
     client, _, _ = gateway
     r = client.post("/mcp", headers={"Authorization": f"Bearer {access}", "Accept": "application/json, text/event-stream", "MCP-Protocol-Version": "2025-06-18"}, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
     names = {t["name"] for t in r.json()["result"]["tools"]}
-    assert names == {
+    assert {
         "get_version", "list_sites", "post_list", "post_get", "category_list", "tag_list", "media_list",
         "post_create", "post_update", "media_upload", "post_trash", "post_rollback", "docx_to_content",
-    }
+    } <= names
+    assert len(names) == 70
 
 
 def test_account_page_disconnect(gateway, access):

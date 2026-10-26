@@ -2,7 +2,7 @@
 
 import os
 
-_VERSION_BASE = "1.0"
+_VERSION_BASE = "1.1"
 
 # The image build passes APP_VERSION (base + commit count) and GIT_SHA.
 __version__ = os.environ.get("APP_VERSION") or f"{_VERSION_BASE}.0"

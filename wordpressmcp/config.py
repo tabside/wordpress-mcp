@@ -210,6 +210,7 @@ class Settings:
     tool_calls_per_minute: int
     wp_timeout: float
     max_file_bytes: int
+    max_response_chars: int
 
     @property
     def resource_url(self) -> str:
@@ -275,4 +276,5 @@ class Settings:
             tool_calls_per_minute=_env_int("TOOL_CALLS_PER_MINUTE", 120),
             wp_timeout=float(_env_int("WP_TIMEOUT", 60)),
             max_file_bytes=_env_int("MAX_FILE_MB", 20) * 1024 * 1024,
+            max_response_chars=_env_int("MAX_RESPONSE_KB", 500) * 1024,
         )

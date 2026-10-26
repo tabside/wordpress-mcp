@@ -128,7 +128,7 @@ final class Tabside_MCP_Plugin {
 			'mcp',
 			self::SERVER_ID,
 			'tabside MCP',
-			'Beiträge, Seiten und Medien dieser WordPress-Seite lesen und bearbeiten.',
+			'Diese WordPress-Seite verwalten: Inhalte, Elementor, Menüs, Einstellungen, Plugins, Themes, Benutzer.',
 			TABSIDE_MCP_VERSION,
 			array( \WP\MCP\Transport\HttpTransport::class ),
 			\WP\MCP\Infrastructure\ErrorHandling\ErrorLogMcpErrorHandler::class,

@@ -49,13 +49,17 @@ from .wordpress import SitePool
 logger = logging.getLogger(__name__)
 
 INSTRUCTIONS = (
-    "Dieses Gateway bearbeitet Beiträge, Seiten und Medien auf WordPress-Seiten von Kunden über das Plugin tabside-mcp. "
-    "Zuerst list_sites aufrufen und bei jedem weiteren Tool die id als site übergeben. Schreibende Tools (post_create, "
-    "post_update, media_upload, post_trash, post_rollback) liefern ohne confirm=true nur eine Vorschau; confirm=true erst "
-    "setzen, wenn der Benutzer die Vorschau bestätigt hat. Ablauf für einen Blogbeitrag aus Word: docx_to_content, "
-    "PDF mit media_upload hochladen und media.url im Inhalt verlinken, dann post_create mit status, date, categories. "
-    "publish mit Datum in der Zukunft wird automatisch future (geplant). Vor jedem post_update wird der alte Stand "
-    "gesichert, zurückholen mit post_rollback. Gelöscht wird nie endgültig, post_trash verschiebt in den Papierkorb."
+    "Dieses Gateway verwaltet WordPress-Seiten von Kunden über das Plugin tabside-mcp: Inhalte aller Beitragstypen, Medien, "
+    "Elementor-Seiten, -Vorlagen und -Popups bis auf Widget-Ebene, Menüs, Einstellungen, Customizer-CSS, Widgets, Weiterleitungen "
+    "und für Administratoren Plugins, Themes, WordPress-Updates und Benutzer. Zuerst list_sites aufrufen und bei jedem weiteren Tool "
+    "die id als site übergeben. Alle schreibenden Tools liefern ohne confirm=true nur eine Vorschau; confirm=true erst setzen, wenn "
+    "der Benutzer die Vorschau bestätigt hat. Vor jeder Änderung wird gesichert: Beiträge und Elementor mit post_rollback, Menüs mit "
+    "menu_rollback, Einstellungen mit option_rollback, CSS mit custom_css_rollback, Widgets mit widget_rollback. Gelöscht wird nie "
+    "endgültig: post_trash verschiebt in den Papierkorb, Plugins werden nur deaktiviert. "
+    "Elementor: Aufbau mit elementor_get lesen, Texte mit elementor_find suchen und mit elementor_replace_text (expected_count) "
+    "ersetzen, Seiten/Popups mit post_duplicate kopieren und mit elementor_copy_layout (replace_popup_ids) übertragen. "
+    "Blogbeitrag aus Word: docx_to_content, PDF mit media_upload hochladen und media.url im Inhalt verlinken, dann post_create mit "
+    "status, date, categories; publish mit Datum in der Zukunft wird automatisch future (geplant)."
 )
 
 

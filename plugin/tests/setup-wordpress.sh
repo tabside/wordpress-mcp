@@ -1,9 +1,11 @@
 #!/bin/bash
-# Local or CI test WordPress with SQLite and tabside-mcp (symlinked), without MCP Adapter.
+# Local or CI test WordPress with SQLite and tabside-mcp (symlinked), without MCP Adapter, with Elementor,
+# Redirection and a custom post type "service" (Elementor enabled).
 #
 #   plugin/tests/setup-wordpress.sh <dir> <port> [wordpress-version]
 #
-# Prints APP=<application password of claude-mcp (editor)>, OTHERAPP=<of editor "other">, READERAPP=<of subscriber "leser">.
+# Prints APP=<application password of claude-mcp (editor)>, OTHERAPP=<of editor "other">, READERAPP=<of subscriber "leser">,
+# ADMINAPP=<of administrator "admin">, ELEMENTOR_*=<IDs of the Elementor test content>, SERVICE_POST=<ID>.
 # Start the site afterwards with:  php -S 127.0.0.1:<port> -t <dir>
 set -euo pipefail
 D=$1; PORT=$2; VERSION=${3:-latest}
@@ -15,6 +17,8 @@ if [ "$VERSION" = latest ]; then fetch wordpress-latest.zip https://wordpress.or
 else fetch "wordpress-$VERSION.zip" "https://wordpress.org/wordpress-$VERSION.zip"; ZIP=$CACHE/wordpress-$VERSION.zip; fi
 fetch sqlite.zip https://downloads.wordpress.org/plugin/sqlite-database-integration.latest-stable.zip
 fetch wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+fetch elementor.zip https://downloads.wordpress.org/plugin/elementor.latest-stable.zip
+fetch redirection.zip https://downloads.wordpress.org/plugin/redirection.latest-stable.zip
 WP="php $CACHE/wp-cli.phar --allow-root --path=$D"
 
 rm -rf "$D" "$D.tmp"; mkdir -p "$D.tmp"; unzip -q "$ZIP" -d "$D.tmp"; mv "$D.tmp/wordpress" "$D"; rm -rf "$D.tmp"
@@ -39,6 +43,12 @@ $WP core install --url="http://127.0.0.1:$PORT" --title="Testseite" --admin_user
 $WP option update timezone_string Europe/Zurich >/dev/null
 ln -s "$REPO/plugin/tabside-mcp" "$D/wp-content/plugins/tabside-mcp"
 $WP plugin activate tabside-mcp >/dev/null
+mkdir -p "$D/wp-content/mu-plugins"; cp "$REPO/plugin/tests/test-mu-plugin.php" "$D/wp-content/mu-plugins/"
+unzip -q "$CACHE/elementor.zip" -d "$D/wp-content/plugins/"
+unzip -q "$CACHE/redirection.zip" -d "$D/wp-content/plugins/"
+$WP plugin activate elementor redirection >/dev/null
+$WP redirection database install >/dev/null
+$WP option update elementor_cpt_support '["page","post","service"]' --format=json >/dev/null
 $WP user create claude-mcp claude-mcp@example.com --role=editor --user_pass="$(openssl rand -hex 16)" >/dev/null
 $WP user create other other@example.com --role=editor --user_pass="$(openssl rand -hex 16)" >/dev/null
 $WP term create category "Recht" --slug=recht >/dev/null
@@ -47,4 +57,9 @@ echo "APP=$($WP user application-password create claude-mcp gateway --porcelain)
 $WP user create leser leser@example.com --role=subscriber --user_pass="$(openssl rand -hex 16)" >/dev/null
 echo "READERAPP=$($WP user application-password create leser gateway --porcelain)"
 echo "OTHERAPP=$($WP user application-password create other gateway --porcelain)"
+echo "ADMINAPP=$($WP user application-password create admin gateway --porcelain)"
+$WP eval-file "$REPO/plugin/tests/elementor-fixture.php"
+$WP widget add text test-sidebar --title="Hinweis" --text="Alter Hinweistext" >/dev/null
+$WP menu create "Testmenü" >/dev/null
+echo "ELEMENTOR=$($WP plugin get elementor --field=version)"
 echo "WORDPRESS=$($WP core version)"

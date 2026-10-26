@@ -1,10 +1,10 @@
 === tabside MCP ===
 Requires at least: 6.9
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 2.0.0
 License: GPLv2 or later
 
-Beiträge, Seiten und Medien für das WordPress-MCP-Gateway.
+WordPress-Seite über das WordPress-MCP-Gateway verwalten: Inhalte, Elementor, Menüs, Einstellungen, Plugins, Themes, Benutzer.
 
 == Beschreibung ==
 
@@ -12,13 +12,21 @@ Registriert Abilities der Kategorie "tabside" (Abilities API, WordPress 6.9+). D
 den REST-Endpunkt des Kerns auf, weitere Plugins sind nicht nötig. Optional mit dem Plugin "MCP Adapter"
 zusätzlich als MCP-Server unter /wp-json/mcp/tabside.
 
-Lesen: get-version, post-list, post-get, category-list, tag-list, media-list.
-Schreiben (nur mit confirm=true, sonst Vorschau): post-create, post-update, media-upload, post-trash, post-rollback.
-Vor jedem Update wird der alte Stand gesichert (Post-Meta _tabside_mcp_backups).
+Inhalte: get-version, post-type-list, post-list, post-get, category-list, tag-list, term-list, media-list, post-create,
+post-update, post-duplicate, media-upload, post-trash, post-rollback, term-create, term-update, term-delete.
+Elementor (wenn aktiv): elementor-info, -get, -find, -references, -template-list, -update-element, -replace-text,
+-insert-element, -move-element, -remove-element, -copy-layout, -set-conditions (Pro), -page-settings-update.
+Navigation und Einstellungen: menu-*, option-get/-update/-rollback (Whitelist), custom-css-*, widget-*, redirect-* (Redirection).
+Administration: plugin-*, theme-*, core-update-check, core-update (nur Minor), site-health, cache-flush, user-list,
+user-get, user-update, application-password-list, audit-log.
 
-Ausführen darf jeder Benutzer mit den nötigen Rechten (mindestens Redakteur), der sich mit einem Anwendungspasswort
-anmeldet. Beschränken auf einen Benutzer: define( 'TABSIDE_MCP_USER', '<login>' ); in der wp-config.php.
-Keine Abilities für Plugins, Benutzer, Einstellungen oder Dateisystem, kein endgültiges Löschen.
+Schreibende Abilities ändern nur mit confirm=true, sonst Vorschau. Vorher wird gesichert (Beiträge und Elementor im
+Post-Meta, Menüs, Einstellungen, CSS, Widgets in der Option _tabside_mcp_option_backups), danach geprüft, Caches geleert
+und protokolliert (audit-log, letzte 500).
+
+Rechte pro Ability über die passende Capability (current_user_can), Admin-Abilities standardmässig nur für Administratoren.
+Anmeldung über die REST-API nur mit Anwendungspasswort. Beschränken auf einen Benutzer: define( 'TABSIDE_MCP_USER', '<login>' );
+Nie endgültig löschen, keine PHP-Ausführung, kein Datei-Editor, keine SQL-Abfragen, Plugins nur aus dem WordPress-Verzeichnis.
 
 == Installation ==
 
@@ -30,6 +38,9 @@ Updates kommen automatisch aus den GitHub-Releases von tabside/wordpress-mcp.
 Bei WordPress unter 6.9 zeigt das Plugin Administratoren einen Hinweis.
 
 == Changelog ==
+
+= 2.0.0 =
+* Volle Administration: alle Beitragstypen, post-duplicate, Begriffe, Elementor bis auf Widget-Ebene, Menüs, Einstellungen (Whitelist), Customizer-CSS, Widgets, Weiterleitungen (Redirection), Plugins, Themes, Core-Minor-Updates, Website-Zustand, Cache, Benutzer, Protokoll. Details in CHANGELOG.md im Repo.
 
 = 1.5.0 =
 * post-create/post-update: hide_featured_on_single blendet das Beitragsbild auf der Beitragsseite aus (Theme Blockchain, Schlüssel per Filter tabside_mcp_hide_featured_meta_key anpassbar). Wird gesichert und beim Rollback wiederhergestellt.

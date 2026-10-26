@@ -25,7 +25,12 @@ logger = logging.getLogger(__name__)
 
 ABILITY_PREFIX = "tabside/"
 # Abilities annotated readonly: the core endpoint only accepts GET for them.
-READ_ONLY = {"get_version", "post_list", "post_get", "category_list", "tag_list", "media_list"}
+READ_ONLY = {
+    "get_version", "post_type_list", "post_list", "post_get", "category_list", "tag_list", "term_list", "media_list",
+    "elementor_info", "elementor_get", "elementor_find", "elementor_references", "elementor_template_list",
+    "menu_list", "menu_get", "option_get", "custom_css_get", "widget_list", "redirect_list",
+    "plugin_list", "theme_list", "core_update_check", "site_health", "user_list", "user_get", "application_password_list", "audit_log",
+}
 LOGIN_ERRORS = {"incorrect_password", "invalid_username", "invalid_email", "application_passwords_disabled", "rest_not_logged_in"}
 
 
@@ -39,6 +44,21 @@ class WordPressError(Exception):
 def ability_name(name: str) -> str:
     """post_list -> tabside/post-list."""
     return ABILITY_PREFIX + name.replace("_", "-")
+
+
+# Abilities of plugin version 1.x: if they are missing, the plugin is not active at all.
+BASE_ABILITIES = {"get_version", "post_list", "post_get", "category_list", "tag_list", "media_list", "post_create", "post_update", "media_upload", "post_trash", "post_rollback"}
+
+
+def missing_ability(name: str) -> str:
+    """Why an ability is not registered on the site."""
+    if name in BASE_ABILITIES:
+        return "Plugin tabside-mcp ist nicht aktiv."
+    if name.startswith("elementor_"):
+        return "Elementor ist auf dieser Seite nicht aktiv (oder tabside-mcp ist älter als 2.0)."
+    if name.startswith("redirect_"):
+        return "Kein unterstütztes Weiterleitungs-Plugin aktiv (unterstützt: Redirection)."
+    return "Diese Funktion gibt es auf der Seite nicht: tabside-mcp ist nicht aktiv oder älter als 2.0."
 
 
 def run_url(rest_url: str, name: str) -> str:
@@ -114,14 +134,19 @@ class SiteClient:
         if code == "rest_no_route":
             raise WordPressError(f"{label}: REST-Endpunkt der Abilities nicht gefunden. Ist WordPress mindestens 6.9?", status=404)
         if code == "rest_ability_not_found":
-            raise WordPressError(f"{label}: Plugin tabside-mcp ist nicht aktiv.", status=404)
+            raise WordPressError(f"{label}: {missing_ability(name)}", status=404)
         if code in LOGIN_ERRORS or (status == 401 and not (code or "").startswith("tabside_mcp")):
             raise WordPressError(f"{label} lehnt die Anmeldung ab (HTTP {status}). Benutzer und Anwendungspasswort prüfen.", status=status)
         if not isinstance(body, dict):
             raise WordPressError(f"Unerwartete Antwort von {label} (HTTP {status}).", status=502)
         # Plugin and validation errors: the message is meant for the user.
         message = message.replace("Ability \"" + ability_name(name) + "\" has invalid input. Reason: ", "Ungültige Eingabe: ")
-        raise WordPressError(f"{label}: {message[:1000] or json.dumps(body)[:300]}", status=status)
+        message = message[:1000] or json.dumps(body)[:300]
+        data = body.get("data")
+        if isinstance(data, dict) and data.get("hits"):
+            # e.g. elementor_replace_text with a different number of matches: where the text was found.
+            message += " Fundstellen: " + json.dumps(data["hits"], ensure_ascii=False)[:20000]
+        raise WordPressError(f"{label}: {message}", status=status)
 
 
 class SitePool:

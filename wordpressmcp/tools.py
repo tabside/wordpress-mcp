@@ -9,13 +9,15 @@ from __future__ import annotations
 import asyncio
 import base64
 import binascii
+import json
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
+from pydantic import Field
 
 from . import GIT_SHA, __version__
 from .config import Settings
@@ -31,12 +33,17 @@ TRASH = ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint
 READ = "wordpress:read"
 WRITE_SCOPE = "wordpress:write"
 
-PostType = Literal["post", "page"]
+PostType = Annotated[str, Field(description="Beitragstyp aus post_type_list, z.B. post, page, elementor_library oder ein eigener Typ wie service.")]
 Status = Literal["draft", "pending", "publish", "future", "private"]
 TermList = list[int | str]
+TermMap = Annotated[
+    dict[str, list[int | str]] | None,
+    Field(description='Begriffe weiterer Taxonomien: {"taxonomie": [ID, Slug oder Name]}. Müssen existieren (term_create). Ersetzt die bisherigen dieser Taxonomie.'),
+]
 
 SITE_DOC = "Seite aus list_sites (id)."
 CONFIRM_DOC = " Ohne confirm=true wird nichts geändert, es kommt nur eine Vorschau. confirm=true erst setzen, wenn der Benutzer die Vorschau bestätigt hat."
+ADMIN_DOC = " Admin-Tool: Vorschau zuerst dem Benutzer zeigen und nur nach ausdrücklicher Bestätigung mit confirm=true ausführen."
 
 
 @dataclass
@@ -73,7 +80,18 @@ class ToolRunner:
             result = await self.pool.get(site).call(tool, args)
         except WordPressError as exc:
             raise ToolError(exc.message)
-        return {"site": site, **result}
+        return self._limited({"site": site, **result})
+
+    def _limited(self, result: dict[str, Any]) -> dict[str, Any]:
+        """Never hand a response to the client that is larger than the configured limit."""
+        size = len(json.dumps(result, ensure_ascii=False))
+        limit = self.settings.max_response_chars
+        if size > limit:
+            raise ToolError(
+                f"Antwort zu gross ({size // 1024} KB, erlaubt {limit // 1024} KB). Bitte eingrenzen, "
+                "z.B. mit element_id, full=false, limit, page oder search."
+            )
+        return result
 
     def site(self, site: str) -> None:
         try:
@@ -92,17 +110,23 @@ class ToolRunner:
         except WordPressError as exc:
             audit("tool_write", **log, ok=False, error_status=exc.status)
             if confirmed and exc.status in (502, 504):
-                raise ToolError(exc.message + " Die Änderung kann trotzdem ausgeführt worden sein: vor einem neuen Versuch mit post_list bzw. media_list prüfen.")
+                raise ToolError(exc.message + " Die Änderung kann trotzdem ausgeführt worden sein: vor einem neuen Versuch mit dem passenden Lese-Tool oder audit_log prüfen.")
             raise ToolError(exc.message)
         post = result.get("post") if isinstance(result.get("post"), dict) else None
         if post and post.get("id"):
             log["post_id"] = post["id"]
+        for key in ("post_id", "target_post_id", "element_id", "plugin", "slug", "theme", "user_id", "menu_id", "item_id", "widget_id", "term_id", "redirect_id"):
+            if args.get(key) and key not in log:
+                log[key] = args[key]
+        if isinstance(result.get("affected_posts"), list):
+            log["affected_posts"] = result["affected_posts"]
         if isinstance(result.get("media"), dict):
             log["media_id"] = result["media"].get("id")
-        if result.get("backup_id"):
-            log["backup_id"] = result["backup_id"]
+        for key in ("backup_id", "safety_backup_id", "backup_ids"):
+            if result.get(key):
+                log[key] = result[key]
         audit("tool_write", **log, ok=True, executed=bool(result.get("confirmed")))
-        return {"site": site, **result}
+        return self._limited({"site": site, **result})
 
     async def load_file(self, url: str | None, data_base64: str | None) -> tuple[bytes, str | None]:
         if bool(url) == bool(data_base64):
@@ -132,7 +156,7 @@ def _site_entry(site: Any) -> dict[str, Any]:
 
 def register_tools(mcp: MCPServer, runner: ToolRunner, settings: Settings) -> None:
     @mcp.tool(
-        description="Version und Commit des Gateways. Mit site zusätzlich Version und Commit des Plugins tabside-mcp sowie WordPress- und MCP-Adapter-Version dieser Seite.",
+        description="Version und Commit des Gateways. Mit site zusätzlich Version und Commit des Plugins tabside-mcp, WordPress-, Elementor- und PHP-Version, erkannte Cache- und Weiterleitungs-Plugins und admin_tools dieser Seite.",
         annotations=READ_ONLY,
     )
     async def get_version(site: str | None = None) -> dict[str, Any]:
@@ -146,7 +170,10 @@ def register_tools(mcp: MCPServer, runner: ToolRunner, settings: Settings) -> No
         return out
 
     @mcp.tool(
-        description="Zeigt die konfigurierten WordPress-Seiten (id für den Parameter site, Name, URL). Mit check=true wird jede Seite angefragt und die Plugin-Version bzw. der Fehler gemeldet.",
+        description=(
+            "Zeigt die konfigurierten WordPress-Seiten (id für den Parameter site, Name, URL). Mit check=true wird jede Seite angefragt: "
+            "Plugin-, WordPress- und Elementor-Version, admin_tools (enabled = Plugins, Themes, Einstellungen, Benutzer verfügbar) bzw. der Fehler."
+        ),
         annotations=READ_ONLY,
     )
     async def list_sites(check: bool = False) -> dict[str, Any]:
@@ -161,6 +188,9 @@ def register_tools(mcp: MCPServer, runner: ToolRunner, settings: Settings) -> No
                     entry["plugin_version"] = info.get("version")
                     entry["wordpress_version"] = info.get("wordpress")
                     entry["mcp_adapter_version"] = info.get("mcp_adapter")
+                    entry["elementor_version"] = info.get("elementor")
+                    entry["elementor_pro_version"] = info.get("elementor_pro")
+                    entry["admin_tools"] = info.get("admin_tools")
                 except WordPressError as exc:
                     entry["status"] = "error"
                     entry["error"] = exc.message
@@ -169,22 +199,46 @@ def register_tools(mcp: MCPServer, runner: ToolRunner, settings: Settings) -> No
         return {"sites": entries}
 
     @mcp.tool(
-        description="Listet Beiträge (type=post) oder Seiten (type=page), neueste zuerst. Filter: status (Standard any = alles ausser Papierkorb), search, category (ID oder Slug). Max. 100 pro Seite.",
+        description="Alle Beitragstypen der Seite mit Verwaltungsoberfläche: Slug (für type), Bezeichnung, URL-Präfix (rewrite_slug), Taxonomien, ob Elementor ihn bearbeitet, Anzahl.",
+        annotations=READ_ONLY,
+    )
+    async def post_type_list(site: str) -> dict[str, Any]:
+        return await runner.read(site, "post_type_list", {})
+
+    @mcp.tool(
+        description=(
+            "Listet Beiträge eines Beitragstyps (type aus post_type_list, z.B. post, page, elementor_library, service; any = alle), neueste zuerst. "
+            "Filter: status (Standard any = alles ausser Papierkorb), search, category (ID oder Slug), parent, meta_key/meta_value "
+            "(nur _elementor_edit_mode, _elementor_template_type, _wp_page_template; z.B. Popups: type=elementor_library, meta_key=_elementor_template_type, meta_value=popup). Max. 100 pro Seite."
+        ),
         annotations=READ_ONLY,
     )
     async def post_list(
         site: str,
-        type: Literal["post", "page", "any"] = "post",
+        type: str = "post",
         status: Literal["draft", "pending", "publish", "future", "private", "trash", "any"] = "any",
         search: str | None = None,
         category: int | str | None = None,
+        parent: int | None = None,
+        meta_key: Literal["_elementor_edit_mode", "_elementor_template_type", "_wp_page_template"] | None = None,
+        meta_value: str | None = None,
+        orderby: Literal["date", "modified", "title", "menu_order", "ID"] = "date",
+        order: Literal["ASC", "DESC"] = "DESC",
         limit: int = 20,
         page: int = 1,
     ) -> dict[str, Any]:
-        return await runner.read(site, "post_list", {"type": type, "status": status, "search": search, "category": category, "limit": limit, "page": page})
+        args = {
+            "type": type, "status": status, "search": search, "category": category, "parent": parent, "meta_key": meta_key,
+            "meta_value": meta_value, "orderby": orderby, "order": order, "limit": limit, "page": page,
+        }
+        return await runner.read(site, "post_list", args)
 
     @mcp.tool(
-        description="Ein Beitrag oder eine Seite: Inhalt (roh, HTML oder Blöcke), Datum, Status, Kategorien, Schlagwörter, Beitragsbild, Vorschau-Link und die Sicherungen (backups) für post_rollback.",
+        description=(
+            "Ein Beitrag beliebigen Typs: Inhalt (roh, HTML oder Blöcke), Datum, Status, Begriffe, Beitragsbild, Template, Eltern-Seite, Reihenfolge, "
+            "Elementor-Angaben (elementor_info: Vorlagentyp, Bedingungen, Version), Zusatzfelder, Vorschau-Link und die Sicherungen (backups) für post_rollback. "
+            "Den Elementor-Aufbau liefert elementor_get."
+        ),
         annotations=READ_ONLY,
     )
     async def post_get(site: str, id: int) -> dict[str, Any]:
@@ -199,6 +253,40 @@ def register_tools(mcp: MCPServer, runner: ToolRunner, settings: Settings) -> No
         return await runner.read(site, "tag_list", {"search": search, "limit": limit})
 
     @mcp.tool(
+        description="Begriffe einer beliebigen Taxonomie (category, post_tag oder eigene) mit ID, Name, Slug, Beschreibung, Eltern-ID und Anzahl. Ohne taxonomy: Liste der Taxonomien.",
+        annotations=READ_ONLY,
+    )
+    async def term_list(site: str, taxonomy: str | None = None, search: str | None = None, parent: int | None = None, limit: int = 100, page: int = 1) -> dict[str, Any]:
+        return await runner.read(site, "term_list", {"taxonomy": taxonomy, "search": search, "parent": parent, "limit": limit, "page": page})
+
+    @mcp.tool(description="Legt einen Begriff in einer Taxonomie an (Kategorie, Schlagwort oder eigene)." + CONFIRM_DOC, annotations=WRITE)
+    async def term_create(
+        site: str, taxonomy: str, name: str, slug: str | None = None, description: str | None = None, parent: int | None = None, confirm: bool = False
+    ) -> dict[str, Any]:
+        return await runner.write(site, "term_create", {"taxonomy": taxonomy, "name": name, "slug": slug, "description": description, "parent": parent, "confirm": confirm})
+
+    @mcp.tool(description="Ändert Name, Slug, Beschreibung oder Eltern-Begriff eines Begriffs. Alter Stand wird gesichert." + CONFIRM_DOC, annotations=WRITE)
+    async def term_update(
+        site: str,
+        taxonomy: str,
+        term_id: int,
+        name: str | None = None,
+        slug: str | None = None,
+        description: str | None = None,
+        parent: int | None = None,
+        confirm: bool = False,
+    ) -> dict[str, Any]:
+        args = {"taxonomy": taxonomy, "term_id": term_id, "name": name, "slug": slug, "description": description, "parent": parent, "confirm": confirm}
+        return await runner.write(site, "term_update", args)
+
+    @mcp.tool(
+        description="Löscht einen Begriff, aber nur, wenn ihm keine Beiträge zugeordnet sind. Name, Slug, Beschreibung und Zusatzfelder werden vorher gesichert." + CONFIRM_DOC,
+        annotations=TRASH,
+    )
+    async def term_delete(site: str, taxonomy: str, term_id: int, confirm: bool = False) -> dict[str, Any]:
+        return await runner.write(site, "term_delete", {"taxonomy": taxonomy, "term_id": term_id, "confirm": confirm})
+
+    @mcp.tool(
         description="Dateien der Mediathek, neueste zuerst, mit URL zum Verlinken. mime_type z.B. application/pdf oder image.",
         annotations=READ_ONLY,
     )
@@ -207,11 +295,12 @@ def register_tools(mcp: MCPServer, runner: ToolRunner, settings: Settings) -> No
 
     @mcp.tool(
         description=(
-            "Legt einen Beitrag (type=post) oder eine Seite (type=page) an. content als HTML oder Gutenberg-Blöcke (z.B. aus docx_to_content). "
+            "Legt einen Beitrag beliebigen Typs an (type aus post_type_list, Standard post). content als HTML oder Gutenberg-Blöcke (z.B. aus docx_to_content). "
             "status: draft (Standard), pending, publish, future, private; publish mit Datum in der Zukunft wird automatisch future (geplant). "
             "date: YYYY-MM-DD HH:MM in der Zeitzone der Seite oder ISO 8601. categories als ID, Slug oder Name (müssen existieren), "
             "tags als ID oder Name (fehlende werden angelegt), featured_media = Bild-ID aus der Mediathek, "
-            "hide_featured_on_single=true blendet das Beitragsbild auf der Beitragsseite aus (Theme-Option, z.B. Blockchain)." + CONFIRM_DOC
+            "hide_featured_on_single=true blendet das Beitragsbild auf der Beitragsseite aus (Theme-Option, z.B. Blockchain). "
+            "terms für weitere Taxonomien, parent/menu_order/template/comment_status wie im wp-admin." + CONFIRM_DOC
         ),
         annotations=WRITE,
     )
@@ -228,19 +317,26 @@ def register_tools(mcp: MCPServer, runner: ToolRunner, settings: Settings) -> No
         excerpt: str | None = None,
         slug: str | None = None,
         hide_featured_on_single: bool | None = None,
+        terms: TermMap = None,
+        parent: int | None = None,
+        menu_order: int | None = None,
+        template: str | None = None,
+        comment_status: Literal["open", "closed"] | None = None,
         confirm: bool = False,
     ) -> dict[str, Any]:
         args = {
             "type": type, "title": title, "content": content, "status": status, "date": date, "categories": categories,
             "tags": tags, "featured_media": featured_media, "excerpt": excerpt, "slug": slug,
-            "hide_featured_on_single": hide_featured_on_single, "confirm": confirm,
+            "hide_featured_on_single": hide_featured_on_single, "terms": terms, "parent": parent, "menu_order": menu_order,
+            "template": template, "comment_status": comment_status, "confirm": confirm,
         }
         return await runner.write(site, "post_create", args)
 
     @mcp.tool(
         description=(
-            "Ändert einen Beitrag oder eine Seite, nur die übergebenen Felder. Vor dem Ändern sichert das Plugin den alten Stand "
-            "(Rückgabe backup_id, zurückholen mit post_rollback). categories und tags ersetzen die bisherigen, featured_media=0 entfernt das Beitragsbild." + CONFIRM_DOC
+            "Ändert einen Beitrag beliebigen Typs, nur die übergebenen Felder. Vor dem Ändern sichert das Plugin den alten Stand "
+            "(Rückgabe backup_id, zurückholen mit post_rollback). categories, tags und terms ersetzen die bisherigen, featured_media=0 entfernt das Beitragsbild. "
+            "template z.B. default, elementor_canvas, elementor_header_footer. Elementor-Inhalte mit den elementor_*-Tools ändern." + CONFIRM_DOC
         ),
         annotations=WRITE,
     )
@@ -257,14 +353,39 @@ def register_tools(mcp: MCPServer, runner: ToolRunner, settings: Settings) -> No
         excerpt: str | None = None,
         slug: str | None = None,
         hide_featured_on_single: bool | None = None,
+        terms: TermMap = None,
+        parent: int | None = None,
+        menu_order: int | None = None,
+        template: str | None = None,
+        comment_status: Literal["open", "closed"] | None = None,
         confirm: bool = False,
     ) -> dict[str, Any]:
         args = {
             "id": id, "title": title, "content": content, "status": status, "date": date, "categories": categories,
             "tags": tags, "featured_media": featured_media, "excerpt": excerpt, "slug": slug,
-            "hide_featured_on_single": hide_featured_on_single, "confirm": confirm,
+            "hide_featured_on_single": hide_featured_on_single, "terms": terms, "parent": parent, "menu_order": menu_order,
+            "template": template, "comment_status": comment_status, "confirm": confirm,
         }
         return await runner.write(site, "post_update", args)
+
+    @mcp.tool(
+        description=(
+            "Dupliziert einen Beitrag beliebigen Typs (auch Elementor-Seiten, -Vorlagen und -Popups) mit allen Zusatzfeldern, Begriffen und Beitragsbild. "
+            "Elementor-Element-IDs werden neu vergeben, die Daten bleiben byte-genau (verify zeigt die Kontrolle). Status Standard draft. "
+            "Popups und Theme-Vorlagen erhalten keine Anzeigebedingungen, ausser conditions wird übergeben (nur Elementor Pro)." + CONFIRM_DOC
+        ),
+        annotations=WRITE,
+    )
+    async def post_duplicate(
+        site: str,
+        id: int,
+        title: str | None = None,
+        slug: str | None = None,
+        status: Literal["draft", "pending", "publish", "private"] = "draft",
+        conditions: Annotated[list[str] | None, Field(description='Elementor-Anzeigebedingungen der Kopie, z.B. ["include/singular/page/12"].')] = None,
+        confirm: bool = False,
+    ) -> dict[str, Any]:
+        return await runner.write(site, "post_duplicate", {"id": id, "title": title, "slug": slug, "status": status, "conditions": conditions, "confirm": confirm})
 
     @mcp.tool(
         description=(
@@ -298,7 +419,7 @@ def register_tools(mcp: MCPServer, runner: ToolRunner, settings: Settings) -> No
         return await runner.write(site, "media_upload", args, ctx)
 
     @mcp.tool(
-        description="Verschiebt einen Beitrag oder eine Seite in den Papierkorb (kein endgültiges Löschen, in WordPress wiederherstellbar)." + CONFIRM_DOC,
+        description="Verschiebt einen Beitrag beliebigen Typs in den Papierkorb (kein endgültiges Löschen, in WordPress wiederherstellbar)." + CONFIRM_DOC,
         annotations=TRASH,
     )
     async def post_trash(site: str, id: int, confirm: bool = False) -> dict[str, Any]:
@@ -306,8 +427,8 @@ def register_tools(mcp: MCPServer, runner: ToolRunner, settings: Settings) -> No
 
     @mcp.tool(
         description=(
-            "Stellt einen Beitrag aus einer Sicherung wieder her (backup_id aus post_get, leer = neueste Sicherung). "
-            "Der aktuelle Stand wird vorher ebenfalls gesichert, der Rollback ist also selbst umkehrbar." + CONFIRM_DOC
+            "Stellt einen Beitrag aus einer Sicherung wieder her (backup_id aus post_get, leer = neueste Sicherung), auch die Elementor-Daten exakt "
+            "(nach elementor_*-Änderungen). Der aktuelle Stand wird vorher ebenfalls gesichert, der Rollback ist also selbst umkehrbar." + CONFIRM_DOC
         ),
         annotations=WRITE,
     )
@@ -340,3 +461,11 @@ def register_tools(mcp: MCPServer, runner: ToolRunner, settings: Settings) -> No
             result["source_filename"] = filename
         return result
 
+    # The other tool groups import the shared annotations from this module.
+    from .tools_admin import register_admin_tools
+    from .tools_elementor import register_elementor_tools
+    from .tools_site import register_site_tools
+
+    register_elementor_tools(mcp, runner)
+    register_site_tools(mcp, runner)
+    register_admin_tools(mcp, runner)
