@@ -1,7 +1,7 @@
 === tabside MCP ===
 Requires at least: 6.9
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.2.0
 License: GPLv2 or later
 
 Beiträge, Seiten und Medien für das WordPress-MCP-Gateway.
@@ -16,17 +16,21 @@ Lesen: get-version, post-list, post-get, category-list, tag-list, media-list.
 Schreiben (nur mit confirm=true, sonst Vorschau): post-create, post-update, media-upload, post-trash, post-rollback.
 Vor jedem Update wird der alte Stand gesichert (Post-Meta _tabside_mcp_backups).
 
-Ausführen darf nur der Benutzer "claude-mcp" (Rolle Redakteur) mit Anwendungspasswort.
+Ausführen darf jeder Benutzer mit den nötigen Rechten (mindestens Redakteur), der sich mit einem Anwendungspasswort
+anmeldet. Beschränken auf einen Benutzer: define( 'TABSIDE_MCP_USER', '<login>' ); in der wp-config.php.
 Keine Abilities für Plugins, Benutzer, Einstellungen oder Dateisystem, kein endgültiges Löschen.
 
 == Installation ==
 
 1. Dieses Plugin hochladen und aktivieren.
-2. Benutzer "claude-mcp" mit der Rolle Redakteur anlegen und unter Profil ein Anwendungspasswort erzeugen.
+2. Beim gewünschten Benutzer unter Profil ein Anwendungspasswort erzeugen.
 
-Bei WordPress unter 6.9 oder fehlendem Benutzer zeigt das Plugin Administratoren einen Hinweis.
+Bei WordPress unter 6.9 zeigt das Plugin Administratoren einen Hinweis.
 
 == Changelog ==
+
+= 1.2.0 =
+* Nicht mehr auf den Benutzer claude-mcp beschränkt: jeder Benutzer mit Anwendungspasswort und Rechten.
 
 = 1.1.0 =
 * MCP Adapter nicht mehr nötig, das Gateway nutzt den REST-Endpunkt des Kerns.

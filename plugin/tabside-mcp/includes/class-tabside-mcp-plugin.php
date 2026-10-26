@@ -9,8 +9,7 @@ defined( 'ABSPATH' ) || exit;
 
 final class Tabside_MCP_Plugin {
 
-	const SERVER_ID    = 'tabside';
-	const DEFAULT_USER = 'claude-mcp';
+	const SERVER_ID = 'tabside';
 
 	/**
 	 * Ist das Plugin aktiv (WordPress-Version ausreichend)?
@@ -38,10 +37,12 @@ final class Tabside_MCP_Plugin {
 	}
 
 	/**
-	 * Login des einzigen Benutzers, der die Abilities ausführen darf.
+	 * Optional: nur dieser Benutzer darf die Abilities ausführen (TABSIDE_MCP_USER in der
+	 * wp-config.php oder Filter tabside_mcp_allowed_user). Leer = jeder Benutzer mit den
+	 * nötigen Rechten, der sich mit einem Anwendungspasswort anmeldet.
 	 */
 	public static function allowed_login() {
-		$login = defined( 'TABSIDE_MCP_USER' ) ? (string) TABSIDE_MCP_USER : self::DEFAULT_USER;
+		$login = defined( 'TABSIDE_MCP_USER' ) ? (string) TABSIDE_MCP_USER : '';
 		return (string) apply_filters( 'tabside_mcp_allowed_user', $login );
 	}
 
@@ -57,11 +58,11 @@ final class Tabside_MCP_Plugin {
 				TABSIDE_MCP_MIN_WP,
 				get_bloginfo( 'version' )
 			);
-		} else {
+		} elseif ( '' !== self::allowed_login() ) {
 			if ( ! get_user_by( 'login', self::allowed_login() ) ) {
 				$messages[] = sprintf(
 					/* translators: %s: user login */
-					__( 'tabside MCP: Der Benutzer "%s" existiert nicht. Bitte mit der Rolle Redakteur anlegen und ein Anwendungspasswort erzeugen.', 'tabside-mcp' ),
+					__( 'tabside MCP: Der in TABSIDE_MCP_USER eingetragene Benutzer "%s" existiert nicht.', 'tabside-mcp' ),
 					self::allowed_login()
 				);
 			}
@@ -83,13 +84,14 @@ final class Tabside_MCP_Plugin {
 		if ( ! $user || ! $user->exists() ) {
 			return new WP_Error( 'tabside_mcp_not_logged_in', __( 'Nicht angemeldet.', 'tabside-mcp' ), array( 'status' => 401 ) );
 		}
-		if ( strtolower( $user->user_login ) !== strtolower( self::allowed_login() ) ) {
+		$allowed = self::allowed_login();
+		if ( '' !== $allowed && strtolower( $user->user_login ) !== strtolower( $allowed ) ) {
 			return new WP_Error(
 				'tabside_mcp_wrong_user',
 				sprintf(
 					/* translators: %s: user login */
 					__( 'Nur der Benutzer "%s" darf diese Funktionen ausführen.', 'tabside-mcp' ),
-					self::allowed_login()
+					$allowed
 				),
 				array( 'status' => 403 )
 			);

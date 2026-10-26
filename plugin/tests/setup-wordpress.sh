@@ -3,7 +3,7 @@
 #
 #   plugin/tests/setup-wordpress.sh <dir> <port> [wordpress-version]
 #
-# Prints APP=<application password of claude-mcp> and OTHERAPP=<of user "other">.
+# Prints APP=<application password of claude-mcp (editor)>, OTHERAPP=<of editor "other">, READERAPP=<of subscriber "leser">.
 # Start the site afterwards with:  php -S 127.0.0.1:<port> -t <dir>
 set -euo pipefail
 D=$1; PORT=$2; VERSION=${3:-latest}
@@ -44,5 +44,7 @@ $WP user create other other@example.com --role=editor --user_pass="$(openssl ran
 $WP term create category "Recht" --slug=recht >/dev/null
 $WP term create category "Gemeinden" --slug=gemeinden >/dev/null
 echo "APP=$($WP user application-password create claude-mcp gateway --porcelain)"
+$WP user create leser leser@example.com --role=subscriber --user_pass="$(openssl rand -hex 16)" >/dev/null
+echo "READERAPP=$($WP user application-password create leser gateway --porcelain)"
 echo "OTHERAPP=$($WP user application-password create other gateway --porcelain)"
 echo "WORDPRESS=$($WP core version)"

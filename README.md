@@ -2,11 +2,11 @@
 
 Beiträge, Seiten und Medien auf WordPress-Seiten von Kunden über Claude (claude.ai, Cowork, Mobile-App, Claude Code) anlegen und bearbeiten. Zwei Teile:
 
-1. **Plugin `tabside-mcp`** (`plugin/tabside-mcp`, auf jeder Kundenseite): registriert Abilities der Kategorie `tabside` über die Abilities API (WordPress-Core ab 6.9). Das Gateway ruft sie über den REST-Endpunkt des Kerns auf (`/wp-json/wp-abilities/v1/abilities/tabside/<name>/run`). Auf der Kundenseite ist nur dieses eine Plugin nötig. Ausführen darf nur der Benutzer `claude-mcp` (Rolle Redakteur) mit Anwendungspasswort. Optional: Ist zusätzlich das Plugin [MCP Adapter](https://github.com/WordPress/mcp-adapter) aktiv, gibt es auch einen MCP-Server `/wp-json/mcp/tabside`; das Gateway braucht ihn nicht.
+1. **Plugin `tabside-mcp`** (`plugin/tabside-mcp`, auf jeder Kundenseite): registriert Abilities der Kategorie `tabside` über die Abilities API (WordPress-Core ab 6.9). Das Gateway ruft sie über den REST-Endpunkt des Kerns auf (`/wp-json/wp-abilities/v1/abilities/tabside/<name>/run`). Auf der Kundenseite ist nur dieses eine Plugin nötig. Ausführen darf jeder Benutzer mit den nötigen Rechten, der sich mit einem Anwendungspasswort anmeldet (z.B. der eigene Redaktions-Zugang); eine Browser-Anmeldung reicht nicht. Optional: Ist zusätzlich das Plugin [MCP Adapter](https://github.com/WordPress/mcp-adapter) aktiv, gibt es auch einen MCP-Server `/wp-json/mcp/tabside`; das Gateway braucht ihn nicht.
 2. **Gateway `wordpress-mcp`** (dieses Repo, Docker): Remote-MCP-Server mit OAuth-Login, der in claude.ai als eigener Connector eingetragen wird. Er hält die Anwendungspasswörter der Seiten und leitet die Tool-Aufrufe an das Plugin der gewählten Seite weiter. claude.ai-Connectors können keine Anwendungspasswörter pro Seite mitschicken, darum der Umweg.
 
 ```
-claude.ai ──OAuth──▶ Gateway ──Basic Auth (claude-mcp + Anwendungspasswort)──▶ https://kunde/wp-json/wp-abilities/v1/... ──▶ Abilities
+claude.ai ──OAuth──▶ Gateway ──Basic Auth (WordPress-Benutzer + Anwendungspasswort)──▶ https://kunde/wp-json/wp-abilities/v1/... ──▶ Abilities
 ```
 
 ## Tools
@@ -59,10 +59,10 @@ Typischer Ablauf für einen Blogbeitrag aus Word plus PDF:
 Voraussetzungen: WordPress **6.9 oder neuer** (Abilities API im Core), HTTPS (sonst bietet WordPress keine Anwendungspasswörter an), Pretty Permalinks oder `rest_url` mit `?rest_route=` (siehe unten).
 
 1. Plugin **tabside-mcp** über Plugins > Installieren > Plugin hochladen installieren und aktivieren: ZIP aus den [Releases](../../releases) dieses Repos (`tabside-mcp-<version>.zip`).
-2. Benutzer `claude-mcp` mit der Rolle **Redakteur** anlegen (kein Admin). Unter Benutzer > Profil > Anwendungspasswörter ein Passwort "wordpress-mcp" erzeugen und sofort notieren, WordPress zeigt es nur einmal.
+2. Beim WordPress-Benutzer, unter dem die Änderungen laufen sollen (Rechte mindestens Redakteur), unter Benutzer > Profil > Anwendungspasswörter ein Passwort "wordpress-mcp" erzeugen und sofort notieren, WordPress zeigt es nur einmal. Neue Beiträge haben diesen Benutzer als Autor.
 3. Seite im Gateway eintragen (`WP_SITES`, siehe unten) und mit `list_sites` (`check=true`) prüfen.
 
-Bei WordPress unter 6.9 bleibt das Plugin inaktiv und zeigt Administratoren einen Hinweis; ebenso, wenn der Benutzer `claude-mcp` nicht existiert. Ein anderer Benutzername lässt sich mit `define( 'TABSIDE_MCP_USER', '...' );` in der `wp-config.php` oder dem Filter `tabside_mcp_allowed_user` setzen.
+Bei WordPress unter 6.9 bleibt das Plugin inaktiv und zeigt Administratoren einen Hinweis. Auf einen einzigen Benutzer beschränken lässt es sich mit `define( 'TABSIDE_MCP_USER', '<login>' );` in der `wp-config.php` oder dem Filter `tabside_mcp_allowed_user`.
 
 Ein ZIP entsteht bei jedem Tag `plugin-v<Version>` (muss zur Version im Plugin-Header passen) als GitHub-Release, bei jedem Push auf `main` zusätzlich als Actions-Artefakt. Der Commit-Hash steht danach in `get_version`.
 
@@ -121,10 +121,10 @@ location ~ ^(/wordpress(/|$)|/\.well-known/(oauth-authorization-server|openid-co
 
 ```json
 [{"id":"kunde","url":"https://www.example.com","app_password":"xxxx xxxx xxxx xxxx xxxx xxxx","label":"Kunde AG"},
- {"id":"zweite","url":"https://www.example.org","app_password":"...","user":"claude-mcp","rest_url":"https://www.example.org/?rest_route="}]
+ {"id":"zweite","url":"https://www.example.org","app_password":"...","user":"redaktion","rest_url":"https://www.example.org/?rest_route="}]
 ```
 
-`id` (a-z, 0-9, -) ist der Wert für `site`. `user` ist standardmässig `claude-mcp`, `rest_url` standardmässig `<url>/wp-json` (bei einfachen Permalinks `<url>/?rest_route=`). Nur https (http nur für localhost).
+`id` (a-z, 0-9, -) ist der Wert für `site`. `user` (Pflicht) ist der WordPress-Benutzer des Anwendungspassworts, `rest_url` standardmässig `<url>/wp-json` (bei einfachen Permalinks `<url>/?rest_route=`). Nur https (http nur für localhost).
 
 ### In Claude verbinden
 
@@ -150,10 +150,10 @@ Einen Benutzer dauerhaft entfernen: aus `GATEWAY_USERS` streichen und den Stack 
 
 **Plugin**
 
-* Nur der Benutzer `claude-mcp` darf die Abilities ausführen (Prüfung in jedem `permission_callback` und im Transport des MCP-Servers `tabside`), zusätzlich mit der passenden Capability (`edit_posts`, `edit_post`, `publish_posts`, `delete_post`, `upload_files`). Redakteursrechte genügen.
+* Jede Ability prüft im `permission_callback` die passende Capability des angemeldeten Benutzers (`edit_posts`, `edit_post`, `publish_posts`, `delete_post`, `upload_files`). Redakteursrechte genügen.
 * Über die REST-API nur mit **Anwendungspasswort**, nicht mit einer Browser-Sitzung des Benutzers (abschaltbar mit dem Filter `tabside_mcp_require_application_password`).
 * Nur Beiträge und Seiten. Keine Abilities für Plugins, Benutzer, Einstellungen oder Dateisystem; kein endgültiges Löschen.
-* Die Abilities sind `meta.public` (REST-API des Kerns, bei installiertem MCP Adapter auch dessen Standard-Server); ausführen darf sie überall nur `claude-mcp` (getestet).
+* Die Abilities sind `meta.public` (REST-API des Kerns, bei installiertem MCP Adapter auch dessen Standard-Server); ausführen kann sie nur, wer mit Anwendungspasswort angemeldet ist und die Rechte hat (getestet: Redakteur ja, Abonnent nein).
 * Schreiben nur mit `confirm=true`, vorher automatisch Sicherung.
 
 **Gateway**

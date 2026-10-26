@@ -145,6 +145,7 @@ def base_env(monkeypatch, tmp_path):
     monkeypatch.setenv("WP_SITE_KUNDE_URL", "https://kunde.example.com")
     monkeypatch.setenv("WP_SITE_KUNDE_APP_PASSWORD", APP_PASSWORD)
     monkeypatch.setenv("WP_SITE_KUNDE_LABEL", "Kunde AG")
+    monkeypatch.setenv("WP_SITE_KUNDE_USER", "claude-mcp")
     return monkeypatch
 
 

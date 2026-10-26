@@ -49,10 +49,15 @@ def wp(base_env):
     base_env.setenv("WP_SITE_TEST_URL", WP_URL)
     base_env.setenv("WP_SITE_TEST_REST_URL", f"{WP_URL}/?rest_route=")
     base_env.setenv("WP_SITE_TEST_APP_PASSWORD", os.environ["WP_TEST_APP_PASSWORD"])
+    base_env.setenv("WP_SITE_TEST_USER", "claude-mcp")
     base_env.setenv("WP_SITE_OTHER_URL", WP_URL)
     base_env.setenv("WP_SITE_OTHER_REST_URL", f"{WP_URL}/?rest_route=")
     base_env.setenv("WP_SITE_OTHER_USER", "other")
     base_env.setenv("WP_SITE_OTHER_APP_PASSWORD", os.environ["WP_TEST_OTHER_APP_PASSWORD"])
+    base_env.setenv("WP_SITE_READER_URL", WP_URL)
+    base_env.setenv("WP_SITE_READER_REST_URL", f"{WP_URL}/?rest_route=")
+    base_env.setenv("WP_SITE_READER_USER", "leser")
+    base_env.setenv("WP_SITE_READER_APP_PASSWORD", os.environ["WP_TEST_READER_APP_PASSWORD"])
     services = build_services(Settings.load())
     with TestClient(build_app(services), base_url=BASE) as client:
         r, cid, ver, _ = connect(client)
@@ -74,9 +79,10 @@ def test_version_and_sites(wp):
     sites = ok(call(client, access, "list_sites", {"check": True}))["sites"]
     by_id = {s["id"]: s for s in sites}
     assert by_id["test"]["status"] == "ok" and by_id["test"]["plugin_version"]
-    assert by_id["other"]["status"] == "error"  # only claude-mcp may run the abilities
+    assert by_id["other"]["status"] == "ok"  # any editor with an Application Password
+    assert by_id["reader"]["status"] == "error"  # a subscriber lacks the capabilities
     v = ok(call(client, access, "get_version", {"site": "test"}))
-    assert v["plugin"]["wordpress"] and v["plugin"]["allowed_user"] == "claude-mcp"
+    assert v["plugin"]["wordpress"] and v["plugin"]["user"] == "claude-mcp" and v["plugin"]["allowed_user"] is None
 
 
 def test_spec_run_draft_upload_link_update_rollback_trash(wp):
@@ -148,7 +154,7 @@ def test_validation_errors(wp):
     assert "nicht gefunden" in err(call(client, access, "post_get", {"site": "test", "id": 999999}))
     assert "Keine Felder" in err(call(client, access, "post_update", {"site": "test", "id": 1, "confirm": True}))
     assert "nicht erlaubt" in err(call(client, access, "media_upload", {"site": "test", "data_base64": "eA==", "filename": "x.php", "confirm": True}))
-    assert "claude-mcp" in err(call(client, access, "post_list", {"site": "other"}))
+    assert "Berechtigung" in err(call(client, access, "post_list", {"site": "reader"}))
 
 
 def test_past_date_publishes_backdated_and_page(wp):

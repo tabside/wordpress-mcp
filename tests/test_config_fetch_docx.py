@@ -42,6 +42,9 @@ def test_sites_from_env(base_env, tmp_path):
     assert site.app_password == "file secret" and site.username == "mcp-bot" and site.label == "www.example.org"
     assert "file secret" not in repr(site)
     assert s.sites["kunde"].username == "claude-mcp"
+    base_env.delenv("WP_SITE_KUNDE_USER")
+    with pytest.raises(ConfigError, match="user"):
+        Settings.load()
 
 
 def test_site_requires_https_and_password(base_env):
@@ -55,10 +58,10 @@ def test_site_requires_https_and_password(base_env):
 
 
 def test_sites_from_json(base_env, tmp_path):
-    base_env.setenv("WP_SITES", '[{"id": "Zwei", "url": "https://www.example.net", "app_password": "aaaa bbbb", "label": "Zwei GmbH"}]')
+    base_env.setenv("WP_SITES", '[{"id": "Zwei", "url": "https://www.example.net", "app_password": "aaaa bbbb", "user": "kim", "label": "Zwei GmbH"}]')
     s = Settings.load()
     assert set(s.sites) == {"kunde", "zwei"} and s.sites["zwei"].label == "Zwei GmbH" and s.sites["zwei"].app_password == "aaaa bbbb"
-    base_env.setenv("WP_SITES", '[{"id": "kunde", "url": "https://www.example.net", "app_password": "x"}]')
+    base_env.setenv("WP_SITES", '[{"id": "kunde", "url": "https://www.example.net", "app_password": "x", "user": "kim"}]')
     with pytest.raises(ConfigError, match="twice"):
         Settings.load()
     base_env.setenv("WP_SITES", '[{"id": "x", "url": "https://www.example.net", "password": "x"}]')
@@ -68,7 +71,7 @@ def test_sites_from_json(base_env, tmp_path):
     with pytest.raises(ConfigError, match="JSON"):
         Settings.load()
     path = tmp_path / "sites.json"
-    path.write_text('[{"id": "datei", "url": "https://www.example.net", "app_password": "y"}]')
+    path.write_text('[{"id": "datei", "url": "https://www.example.net", "app_password": "y", "user": "kim"}]')
     base_env.delenv("WP_SITES")
     base_env.setenv("WP_SITES_FILE", str(path))
     assert "datei" in Settings.load().sites

@@ -385,7 +385,8 @@ final class Tabside_MCP_Abilities {
 			'php'           => PHP_VERSION,
 			'site_url'      => home_url( '/' ),
 			'timezone'      => wp_timezone_string(),
-			'allowed_user'  => Tabside_MCP_Plugin::allowed_login(),
+			'user'          => wp_get_current_user()->user_login,
+			'allowed_user'  => Tabside_MCP_Plugin::allowed_login() ? Tabside_MCP_Plugin::allowed_login() : null,
 			'max_upload_mb' => round( wp_max_upload_size() / 1048576, 1 ),
 		);
 	}

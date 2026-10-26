@@ -6,15 +6,15 @@ required variable is missing and names it in the log.
 Sites as one JSON variable (what docker-compose.yml passes through, convenient in Portainer):
 
     WP_SITES=[{"id": "kunde", "url": "https://www.example.com", "app_password": "abcd efgh ...",
-               "user": "claude-mcp", "label": "Kunde AG", "rest_url": "..."}]
+               "user": "redaktion", "label": "Kunde AG", "rest_url": "..."}]
 
-    (or WP_SITES_FILE=/run/secrets/wp_sites; user, label and rest_url are optional)
+    (or WP_SITES_FILE=/run/secrets/wp_sites; label and rest_url are optional)
 
 and/or one block of variables per site (KEY = A-Z, 0-9, _):
 
     WP_SITE_<KEY>_URL                 https://www.example.com   (required)
     WP_SITE_<KEY>_APP_PASSWORD        Application Password      (required, or _APP_PASSWORD_FILE)
-    WP_SITE_<KEY>_USER                WordPress user            (default claude-mcp)
+    WP_SITE_<KEY>_USER                WordPress user            (required)
     WP_SITE_<KEY>_LABEL               display name              (default: the host)
     WP_SITE_<KEY>_REST_URL            REST API root             (default <URL>/wp-json; plain permalinks <URL>/?rest_route=)
 
@@ -30,7 +30,6 @@ from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
 VALID_SCOPES = ["wordpress:read", "wordpress:write"]
-DEFAULT_WP_USER = "claude-mcp"
 
 _SITE_URL = re.compile(r"^WP_SITE_([A-Z0-9_]+)_URL$")
 _USER_NAME = re.compile(r"^[a-z0-9._@-]{1,64}$")
@@ -99,6 +98,8 @@ def _make_site(source: str, site_id: str, url: str, password: str | None, user: 
         raise ConfigError(f"{source}: url must use https (Application Passwords must not travel in clear text)")
     if not password:
         raise ConfigError(f"{source}: app_password is missing")
+    if not (user or "").strip():
+        raise ConfigError(f"{source}: user (WordPress user name of the Application Password) is missing")
     rest_url = (rest_url or f"{url}/wp-json").strip().rstrip("/")
     ep = urlparse(rest_url)
     if ep.scheme not in ("https", "http") or not ep.hostname or (ep.scheme == "http" and not _is_local(ep.hostname)):
@@ -108,7 +109,7 @@ def _make_site(source: str, site_id: str, url: str, password: str | None, user: 
         label=(label or "").strip() or parsed.hostname,
         url=url,
         rest_url=rest_url,
-        username=(user or "").strip() or DEFAULT_WP_USER,
+        username=(user or "").strip(),
         app_password=password.strip(),
     )
 

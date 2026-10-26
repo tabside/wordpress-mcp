@@ -50,6 +50,7 @@ jobs:
           plugin/tests/setup-wordpress.sh "$RUNNER_TEMP/wp" 8871 "${{ matrix.wordpress }}" | tee "$RUNNER_TEMP/wp.txt"
           echo "WP_TEST_APP_PASSWORD=$(sed -n 's/^APP=//p' "$RUNNER_TEMP/wp.txt")" >> "$GITHUB_ENV"
           echo "WP_TEST_OTHER_APP_PASSWORD=$(sed -n 's/^OTHERAPP=//p' "$RUNNER_TEMP/wp.txt")" >> "$GITHUB_ENV"
+          echo "WP_TEST_READER_APP_PASSWORD=$(sed -n 's/^READERAPP=//p' "$RUNNER_TEMP/wp.txt")" >> "$GITHUB_ENV"
           PHP_CLI_SERVER_WORKERS=4 nohup php -S 127.0.0.1:8871 -t "$RUNNER_TEMP/wp" > "$RUNNER_TEMP/php-server.log" 2>&1 &
           sleep 2
       - name: Integrationstest
