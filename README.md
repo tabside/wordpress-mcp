@@ -2,11 +2,11 @@
 
 Beiträge, Seiten und Medien auf WordPress-Seiten von Kunden über Claude (claude.ai, Cowork, Mobile-App, Claude Code) anlegen und bearbeiten. Zwei Teile:
 
-1. **Plugin `tabside-mcp`** (`plugin/tabside-mcp`, auf jeder Kundenseite): registriert Abilities der Kategorie `tabside` über die Abilities API (WordPress-Core ab 6.9) und stellt sie über den offiziellen [MCP Adapter](https://github.com/WordPress/mcp-adapter) als eigenen MCP-Server bereit: `/wp-json/mcp/tabside`. Ausführen darf nur der Benutzer `claude-mcp` (Rolle Redakteur) mit Anwendungspasswort.
+1. **Plugin `tabside-mcp`** (`plugin/tabside-mcp`, auf jeder Kundenseite): registriert Abilities der Kategorie `tabside` über die Abilities API (WordPress-Core ab 6.9). Das Gateway ruft sie über den REST-Endpunkt des Kerns auf (`/wp-json/wp-abilities/v1/abilities/tabside/<name>/run`). Auf der Kundenseite ist nur dieses eine Plugin nötig. Ausführen darf nur der Benutzer `claude-mcp` (Rolle Redakteur) mit Anwendungspasswort. Optional: Ist zusätzlich das Plugin [MCP Adapter](https://github.com/WordPress/mcp-adapter) aktiv, gibt es auch einen MCP-Server `/wp-json/mcp/tabside`; das Gateway braucht ihn nicht.
 2. **Gateway `wordpress-mcp`** (dieses Repo, Docker): Remote-MCP-Server mit OAuth-Login, der in claude.ai als eigener Connector eingetragen wird. Er hält die Anwendungspasswörter der Seiten und leitet die Tool-Aufrufe an das Plugin der gewählten Seite weiter. claude.ai-Connectors können keine Anwendungspasswörter pro Seite mitschicken, darum der Umweg.
 
 ```
-claude.ai ──OAuth──▶ Gateway ──Basic Auth (claude-mcp + Anwendungspasswort)──▶ https://kunde/wp-json/mcp/tabside ──▶ Abilities
+claude.ai ──OAuth──▶ Gateway ──Basic Auth (claude-mcp + Anwendungspasswort)──▶ https://kunde/wp-json/wp-abilities/v1/... ──▶ Abilities
 ```
 
 ## Tools
@@ -15,7 +15,7 @@ Jedes Tool ausser `get_version`, `list_sites` und `docx_to_content` hat den Para
 
 | Tool | Art | Beschreibung |
 | --- | --- | --- |
-| `list_sites` | lesen | Konfigurierte Seiten; mit `check=true` wird jede Seite angefragt (Plugin-, WordPress- und Adapter-Version oder Fehler) |
+| `list_sites` | lesen | Konfigurierte Seiten; mit `check=true` wird jede Seite angefragt (Plugin- und WordPress-Version oder Fehler) |
 | `get_version` | lesen | Version und Commit des Gateways, mit `site` auch des Plugins |
 | `post_list` | lesen | Beiträge oder Seiten: `type` (post/page/any), `status`, `search`, `category`, `limit`, `page` |
 | `post_get` | lesen | Inhalt (roh), Datum, Status, Kategorien, Schlagwörter, Beitragsbild, Vorschau-Link, Sicherungen |
@@ -56,14 +56,13 @@ Typischer Ablauf für einen Blogbeitrag aus Word plus PDF:
 
 ## Plugin auf einer Kundenseite installieren
 
-Voraussetzungen: WordPress **6.9 oder neuer** (Abilities API im Core), HTTPS (sonst bietet WordPress keine Anwendungspasswörter an), Pretty Permalinks oder ein eigener `endpoint` mit `?rest_route=`.
+Voraussetzungen: WordPress **6.9 oder neuer** (Abilities API im Core), HTTPS (sonst bietet WordPress keine Anwendungspasswörter an), Pretty Permalinks oder `rest_url` mit `?rest_route=` (siehe unten).
 
-1. Plugin **MCP Adapter** installieren und aktivieren: ZIP von <https://github.com/WordPress/mcp-adapter/releases/latest> über Plugins > Installieren > Plugin hochladen.
-2. Plugin **tabside-mcp** genauso installieren: ZIP aus den [Releases](../../releases) dieses Repos (`tabside-mcp-<version>.zip`).
-3. Benutzer `claude-mcp` mit der Rolle **Redakteur** anlegen (kein Admin). Unter Benutzer > Profil > Anwendungspasswörter ein Passwort "wordpress-mcp" erzeugen und sofort notieren, WordPress zeigt es nur einmal.
-4. Seite im Gateway eintragen (`WP_SITES`, siehe unten) und mit `list_sites` (`check=true`) prüfen.
+1. Plugin **tabside-mcp** über Plugins > Installieren > Plugin hochladen installieren und aktivieren: ZIP aus den [Releases](../../releases) dieses Repos (`tabside-mcp-<version>.zip`).
+2. Benutzer `claude-mcp` mit der Rolle **Redakteur** anlegen (kein Admin). Unter Benutzer > Profil > Anwendungspasswörter ein Passwort "wordpress-mcp" erzeugen und sofort notieren, WordPress zeigt es nur einmal.
+3. Seite im Gateway eintragen (`WP_SITES`, siehe unten) und mit `list_sites` (`check=true`) prüfen.
 
-Bei WordPress unter 6.9 bleibt das Plugin inaktiv und zeigt Administratoren einen Hinweis; ebenso, wenn der MCP Adapter fehlt oder der Benutzer `claude-mcp` nicht existiert. Ein anderer Benutzername lässt sich mit `define( 'TABSIDE_MCP_USER', '...' );` in der `wp-config.php` oder dem Filter `tabside_mcp_allowed_user` setzen.
+Bei WordPress unter 6.9 bleibt das Plugin inaktiv und zeigt Administratoren einen Hinweis; ebenso, wenn der Benutzer `claude-mcp` nicht existiert. Ein anderer Benutzername lässt sich mit `define( 'TABSIDE_MCP_USER', '...' );` in der `wp-config.php` oder dem Filter `tabside_mcp_allowed_user` setzen.
 
 Ein ZIP entsteht bei jedem Tag `plugin-v<Version>` (muss zur Version im Plugin-Header passen) als GitHub-Release, bei jedem Push auf `main` zusätzlich als Actions-Artefakt. Der Commit-Hash steht danach in `get_version`.
 
@@ -108,7 +107,7 @@ location ~ ^(/wordpress(/|$)|/\.well-known/(oauth-authorization-server|openid-co
 | --- | --- | --- |
 | `PUBLIC_BASE_URL` | – | Öffentliche URL, z.B. `https://wordpress-mcp.example.com` |
 | `GATEWAY_USERS` | – | `name=<hash>`, kommagetrennt (`wordpressmcp hash-password`) |
-| `WP_SITES` | leer | JSON-Liste der Seiten, siehe unten. Leer startet das Gateway trotzdem (Warnung im Log). Alternativ `WP_SITES_FILE` (Pfad, z.B. Docker-Secret) oder pro Seite `WP_SITE_<KEY>_URL`, `_APP_PASSWORD` (bzw. `_APP_PASSWORD_FILE`), `_USER`, `_LABEL`, `_ENDPOINT` |
+| `WP_SITES` | leer | JSON-Liste der Seiten, siehe unten. Leer startet das Gateway trotzdem (Warnung im Log). Alternativ `WP_SITES_FILE` (Pfad, z.B. Docker-Secret) oder pro Seite `WP_SITE_<KEY>_URL`, `_APP_PASSWORD` (bzw. `_APP_PASSWORD_FILE`), `_USER`, `_LABEL`, `_REST_URL` |
 | `SERVICE_NAME` | `WordPress MCP` | Name auf Login- und Kontoseite |
 | `ACCESS_TOKEN_TTL` / `REFRESH_TOKEN_TTL` | 3600 / 2592000 | Gültigkeit in Sekunden |
 | `TOOL_CALLS_PER_MINUTE` | 120 | pro Benutzer |
@@ -122,10 +121,10 @@ location ~ ^(/wordpress(/|$)|/\.well-known/(oauth-authorization-server|openid-co
 
 ```json
 [{"id":"kunde","url":"https://www.example.com","app_password":"xxxx xxxx xxxx xxxx xxxx xxxx","label":"Kunde AG"},
- {"id":"zweite","url":"https://www.example.org","app_password":"...","user":"claude-mcp","endpoint":"https://www.example.org/?rest_route=/mcp/tabside"}]
+ {"id":"zweite","url":"https://www.example.org","app_password":"...","user":"claude-mcp","rest_url":"https://www.example.org/?rest_route="}]
 ```
 
-`id` (a-z, 0-9, -) ist der Wert für `site`. `user` ist standardmässig `claude-mcp`, `endpoint` standardmässig `<url>/wp-json/mcp/tabside`. Nur https (http nur für localhost).
+`id` (a-z, 0-9, -) ist der Wert für `site`. `user` ist standardmässig `claude-mcp`, `rest_url` standardmässig `<url>/wp-json` (bei einfachen Permalinks `<url>/?rest_route=`). Nur https (http nur für localhost).
 
 ### In Claude verbinden
 
@@ -154,7 +153,7 @@ Einen Benutzer dauerhaft entfernen: aus `GATEWAY_USERS` streichen und den Stack 
 * Nur der Benutzer `claude-mcp` darf die Abilities ausführen (Prüfung in jedem `permission_callback` und im Transport des MCP-Servers `tabside`), zusätzlich mit der passenden Capability (`edit_posts`, `edit_post`, `publish_posts`, `delete_post`, `upload_files`). Redakteursrechte genügen.
 * Über die REST-API nur mit **Anwendungspasswort**, nicht mit einer Browser-Sitzung des Benutzers (abschaltbar mit dem Filter `tabside_mcp_require_application_password`).
 * Nur Beiträge und Seiten. Keine Abilities für Plugins, Benutzer, Einstellungen oder Dateisystem; kein endgültiges Löschen.
-* Die Abilities sind `meta.public` und damit auch über den Standard-Server des Adapters (`mcp-adapter-default-server`) sichtbar; ausführen darf sie auch dort nur `claude-mcp` (getestet).
+* Die Abilities sind `meta.public` (REST-API des Kerns, bei installiertem MCP Adapter auch dessen Standard-Server); ausführen darf sie überall nur `claude-mcp` (getestet).
 * Schreiben nur mit `confirm=true`, vorher automatisch Sicherung.
 
 **Gateway**
@@ -178,7 +177,7 @@ python -m pytest -q
 
 Die Unit-Tests spielen OAuth, Weiterleitung an ein simuliertes Plugin, Sitzungserneuerung, confirm, Audit-Log, Konfiguration, Downloads und die Word-Konvertierung durch.
 
-Der Integrationstest prüft die ganze Kette gegen ein echtes WordPress mit SQLite, MCP Adapter und dem Plugin (Entwurf mit Datum in der Zukunft, PDF- und Bild-Upload, Verlinkung, Update mit Sicherung, Rollback, Planen, Papierkorb, Fehlerfälle, fremder Benutzer):
+Der Integrationstest prüft die ganze Kette gegen ein echtes WordPress mit SQLite und nur dem Plugin, ohne MCP Adapter (Entwurf mit Datum in der Zukunft, PDF- und Bild-Upload, Verlinkung, Update mit Sicherung, Rollback, Planen, Papierkorb, Fehlerfälle, fremder Benutzer):
 
 ```bash
 plugin/tests/setup-wordpress.sh /tmp/wp 8871 6.9        # oder latest

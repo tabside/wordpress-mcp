@@ -1,4 +1,4 @@
-"""Shared fixtures: settings from env, a fake WordPress MCP endpoint, OAuth helpers."""
+"""Shared fixtures: settings from env, a fake WordPress (core abilities REST endpoint), OAuth helpers."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ import hashlib
 import json
 import re
 import secrets
-import uuid
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -25,47 +24,38 @@ REDIRECT = "https://claude.ai/api/mcp/auth_callback"
 
 
 class FakeWordPress:
-    """Minimal tabside-mcp endpoint: initialize with session, tools/call."""
+    """Core REST endpoint /wp-json/wp-abilities/v1/abilities/tabside/<name>/run with the plugin's abilities."""
+
+    READ_ONLY = {"get-version", "post-list", "post-get", "category-list", "tag-list", "media-list"}
 
     def __init__(self):
-        self.sessions: set[str] = set()
         self.calls: list[tuple[str, dict]] = []
-        self.inits = 0
+        self.requests: list[httpx.Request] = []
         self.reject_auth = False
 
     def handler(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
         auth = request.headers.get("authorization", "")
         user, _, pw = base64.b64decode(auth.split(" ", 1)[1]).decode().partition(":") if auth.startswith("Basic ") else ("", "", "")
         if self.reject_auth or user != "claude-mcp" or pw != APP_PASSWORD:
-            return httpx.Response(401, json={"code": "rest_forbidden", "message": "Sorry, you are not allowed to do that."})
-        if request.url.host != "kunde.example.com" or request.url.path != "/wp-json/mcp/tabside":
-            return httpx.Response(404, json={"code": "rest_no_route"})
-        body = json.loads(request.content)
-        method = body.get("method")
-        if method == "initialize":
-            self.inits += 1
-            sid = str(uuid.uuid4())
-            self.sessions.add(sid)
-            return httpx.Response(
-                200,
-                json={"jsonrpc": "2.0", "id": body["id"], "result": {"protocolVersion": "2025-11-25", "capabilities": {}, "serverInfo": {"name": "tabside MCP", "version": "1.0.0"}}},
-                headers={"Mcp-Session-Id": sid},
-            )
-        sid = request.headers.get("mcp-session-id")
-        if not sid:
-            return httpx.Response(400, json={"jsonrpc": "2.0", "id": body.get("id"), "error": {"code": -32600, "message": "Missing Mcp-Session-Id header"}})
-        if sid not in self.sessions:
-            return httpx.Response(200, json={"jsonrpc": "2.0", "id": body.get("id"), "error": {"code": -32602, "message": "Invalid or expired session"}})
-        if method == "notifications/initialized":
-            return httpx.Response(202)
-        assert method == "tools/call"
-        name = body["params"]["name"]
-        args = body["params"]["arguments"]
+            return httpx.Response(401, json={"code": "incorrect_password", "message": "The provided password is an invalid application password.", "data": {"status": 401}})
+        prefix = "/wp-json/wp-abilities/v1/abilities/tabside/"
+        if request.url.host != "kunde.example.com" or not request.url.path.startswith(prefix) or not request.url.path.endswith("/run"):
+            return httpx.Response(404, json={"code": "rest_no_route", "message": "No route was found matching the URL and request method.", "data": {"status": 404}})
+        slug = request.url.path[len(prefix):-len("/run")]
+        expected = "GET" if slug in self.READ_ONLY else "POST"
+        if request.method != expected:
+            return httpx.Response(405, json={"code": "rest_ability_invalid_method", "message": "wrong method", "data": {"status": 405}})
+        if expected == "GET":
+            args = _parse_php_query(request.url.params.multi_items())
+        else:
+            args = json.loads(request.content).get("input") or {}
+        name = "tabside-" + slug
         self.calls.append((name, args))
         result = self.tool(name, args)
         if isinstance(result, str):
-            return httpx.Response(200, json={"jsonrpc": "2.0", "id": body["id"], "result": {"content": [{"type": "text", "text": result}], "isError": True}})
-        return httpx.Response(200, json={"jsonrpc": "2.0", "id": body["id"], "result": {"content": [{"type": "text", "text": json.dumps(result)}], "isError": False, "structuredContent": result}})
+            return httpx.Response(422, json={"code": "tabside_mcp_error", "message": result, "data": {"status": 422}})
+        return httpx.Response(200, json=result)
 
     def tool(self, name: str, args: dict):
         if name == "tabside-get-version":
@@ -82,12 +72,26 @@ class FakeWordPress:
                 return {"confirmed": False, "preview": {"filename": args["filename"], "size": len(data)}}
             return {"confirmed": True, "media": {"id": 7, "url": f"https://kunde.example.com/wp-content/uploads/{args['filename']}", "size": len(data)}}
         if name == "tabside-post-get":
-            if args["id"] == 404:
+            if int(args["id"]) == 404:
                 return "Beitrag/Seite 404 nicht gefunden."
-            return {"id": args["id"], "title": "Hallo", "content": "<p>x</p>", "backups": []}
+            return {"id": int(args["id"]), "title": "Hallo", "content": "<p>x</p>", "backups": []}
         if name == "tabside-post-list":
             return {"total": 1, "page": 1, "pages": 1, "posts": [{"id": 1, "title": "Hallo"}]}
         return f"unknown tool {name}"
+
+
+def _parse_php_query(items) -> dict:
+    """input[limit]=5&input[tags][]=a -> {"limit": "5", "tags": ["a"]} (like PHP)."""
+    out: dict = {}
+    for key, value in items:
+        parts = re.findall(r"\[([^\]]*)\]", key)
+        if not key.startswith("input[") or not parts:
+            continue
+        if len(parts) == 2 and parts[1] == "":
+            out.setdefault(parts[0], []).append(value)
+        else:
+            out[parts[0]] = value
+    return out
 
 
 def connect(client: TestClient, username: str = "kim", password: str = PASSWORD, scope: str | None = None):

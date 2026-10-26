@@ -1,4 +1,4 @@
-"""OAuth login, tool forwarding to the plugin, sessions, confirm, audit log."""
+"""OAuth login, tool forwarding to the plugin, confirm, audit log."""
 
 from __future__ import annotations
 
@@ -53,14 +53,39 @@ def test_unknown_site(gateway, access):
     assert res["isError"] is True and "kunde" in res["content"][0]["text"]
 
 
-def test_session_reused_and_renewed(gateway, access):
+def test_plain_permalinks_keep_rest_route():
+    import asyncio
+
+    import httpx
+
+    from wordpressmcp.config import SiteConfig
+    from wordpressmcp.wordpress import SiteClient
+
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(200, json={"ok": True})
+
+    site = SiteConfig("k", "K", "https://kunde.example.com", "https://kunde.example.com/?rest_route=", "claude-mcp", "pw")
+    client = SiteClient(site, timeout=5, transport=httpx.MockTransport(handler))
+    asyncio.run(client.call("post_list", {"type": "page"}))
+    asyncio.run(client.call("post_create", {"title": "x"}))
+    get, post = seen
+    assert get.method == "GET" and get.url.params["rest_route"] == "/wp-abilities/v1/abilities/tabside/post-list/run"
+    assert get.url.params["input[type]"] == "page"
+    assert post.method == "POST" and post.url.params["rest_route"] == "/wp-abilities/v1/abilities/tabside/post-create/run"
+
+
+def test_read_is_get_with_query_write_is_post(gateway, access):
     client, fake, _ = gateway
-    call(client, access, "post_list", {"site": "kunde"})
-    call(client, access, "post_get", {"site": "kunde", "id": 1})
-    assert fake.inits == 1
-    fake.sessions.clear()  # site forgot the session (expired)
-    res = call(client, access, "post_get", {"site": "kunde", "id": 1})
-    assert res["structuredContent"]["id"] == 1 and fake.inits == 2
+    call(client, access, "post_list", {"site": "kunde", "search": "Ä b", "limit": 5})
+    req = fake.requests[-1]
+    assert req.method == "GET" and req.url.path == "/wp-json/wp-abilities/v1/abilities/tabside/post-list/run"
+    assert dict(req.url.params.multi_items())["input[search]"] == "Ä b" and dict(req.url.params.multi_items())["input[limit]"] == "5"
+    call(client, access, "post_create", {"site": "kunde", "title": "x", "tags": ["a", "b"]})
+    req = fake.requests[-1]
+    assert req.method == "POST" and json.loads(req.content)["input"]["tags"] == ["a", "b"]
 
 
 def test_create_preview_then_confirm_and_audit(gateway, access, caplog):
@@ -89,6 +114,7 @@ def test_site_rejects_login(gateway, access):
     fake.reject_auth = True
     res = call(client, access, "post_list", {"site": "kunde"})
     assert res["isError"] is True and "Anwendungspasswort" in res["content"][0]["text"]
+    assert "abcd" not in res["content"][0]["text"]
 
 
 def test_media_upload_base64(gateway, access):

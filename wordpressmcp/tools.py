@@ -127,7 +127,7 @@ class ToolRunner:
 
 
 def _site_entry(site: Any) -> dict[str, Any]:
-    return {"id": site.id, "label": site.label, "url": site.url, "endpoint": site.endpoint, "wordpress_user": site.username}
+    return {"id": site.id, "label": site.label, "url": site.url, "rest_url": site.rest_url, "wordpress_user": site.username}
 
 
 def register_tools(mcp: MCPServer, runner: ToolRunner, settings: Settings) -> None:

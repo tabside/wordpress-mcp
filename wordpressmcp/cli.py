@@ -86,7 +86,7 @@ def main(argv: list[str] | None = None) -> None:
         run_api(settings)
     elif args.cmd == "sites":
         for site in settings.sites.values():
-            print(f"{site.id}\t{site.label}\t{site.endpoint}\tUser {site.username}")
+            print(f"{site.id}\t{site.label}\t{site.rest_url}\tUser {site.username}")
     elif args.cmd == "connections":
         asyncio.run(_connections(settings))
     else:

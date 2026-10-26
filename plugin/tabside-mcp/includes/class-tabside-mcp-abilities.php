@@ -52,6 +52,8 @@ final class Tabside_MCP_Abilities {
 					'category'            => self::CATEGORY,
 					'input_schema'        => array(
 						'type'                 => 'object',
+						// Der REST-Endpunkt des Kerns übergibt ohne Parameter null, der Standardwert macht daraus {}.
+						'default'              => array(),
 						'properties'           => $def['properties'],
 						'required'             => $def['required'] ?? array(),
 						'additionalProperties' => false,

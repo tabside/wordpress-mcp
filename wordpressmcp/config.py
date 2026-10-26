@@ -6,9 +6,9 @@ required variable is missing and names it in the log.
 Sites as one JSON variable (what docker-compose.yml passes through, convenient in Portainer):
 
     WP_SITES=[{"id": "kunde", "url": "https://www.example.com", "app_password": "abcd efgh ...",
-               "user": "claude-mcp", "label": "Kunde AG", "endpoint": "..."}]
+               "user": "claude-mcp", "label": "Kunde AG", "rest_url": "..."}]
 
-    (or WP_SITES_FILE=/run/secrets/wp_sites; user, label and endpoint are optional)
+    (or WP_SITES_FILE=/run/secrets/wp_sites; user, label and rest_url are optional)
 
 and/or one block of variables per site (KEY = A-Z, 0-9, _):
 
@@ -16,7 +16,7 @@ and/or one block of variables per site (KEY = A-Z, 0-9, _):
     WP_SITE_<KEY>_APP_PASSWORD        Application Password      (required, or _APP_PASSWORD_FILE)
     WP_SITE_<KEY>_USER                WordPress user            (default claude-mcp)
     WP_SITE_<KEY>_LABEL               display name              (default: the host)
-    WP_SITE_<KEY>_ENDPOINT            full MCP endpoint URL     (default <URL>/wp-json/mcp/tabside)
+    WP_SITE_<KEY>_REST_URL            REST API root             (default <URL>/wp-json; plain permalinks <URL>/?rest_route=)
 
 The site id used in the tools is KEY in lower case with "-" instead of "_".
 """
@@ -66,7 +66,7 @@ class SiteConfig:
     id: str
     label: str
     url: str
-    endpoint: str
+    rest_url: str
     username: str
     app_password: str = field(repr=False)
 
@@ -88,7 +88,7 @@ def _read_secret(name: str) -> str | None:
 _SITE_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
 
 
-def _make_site(source: str, site_id: str, url: str, password: str | None, user: str | None, label: str | None, endpoint: str | None) -> SiteConfig:
+def _make_site(source: str, site_id: str, url: str, password: str | None, user: str | None, label: str | None, rest_url: str | None) -> SiteConfig:
     if not _SITE_ID.fullmatch(site_id):
         raise ConfigError(f"{source}: site id {site_id!r} may only contain a-z, 0-9 and -")
     url = (url or "").strip().rstrip("/")
@@ -99,15 +99,15 @@ def _make_site(source: str, site_id: str, url: str, password: str | None, user: 
         raise ConfigError(f"{source}: url must use https (Application Passwords must not travel in clear text)")
     if not password:
         raise ConfigError(f"{source}: app_password is missing")
-    endpoint = (endpoint or f"{url}/wp-json/mcp/tabside").strip().rstrip("/")
-    ep = urlparse(endpoint)
+    rest_url = (rest_url or f"{url}/wp-json").strip().rstrip("/")
+    ep = urlparse(rest_url)
     if ep.scheme not in ("https", "http") or not ep.hostname or (ep.scheme == "http" and not _is_local(ep.hostname)):
-        raise ConfigError(f"{source}: endpoint must be an https URL")
+        raise ConfigError(f"{source}: rest_url must be an https URL")
     return SiteConfig(
         id=site_id,
         label=(label or "").strip() or parsed.hostname,
         url=url,
-        endpoint=endpoint,
+        rest_url=rest_url,
         username=(user or "").strip() or DEFAULT_WP_USER,
         app_password=password.strip(),
     )
@@ -127,16 +127,16 @@ def _sites_from_json() -> list[SiteConfig]:
         raise ConfigError("WP_SITES must be a JSON list of objects")
     out = []
     for n, item in enumerate(items, 1):
-        unknown = set(item) - {"id", "url", "app_password", "user", "label", "endpoint"}
+        unknown = set(item) - {"id", "url", "app_password", "user", "label", "rest_url"}
         if unknown:
             raise ConfigError(f"WP_SITES entry {n}: unknown field(s) {', '.join(sorted(unknown))}")
-        values = {k: item.get(k) for k in ("id", "url", "app_password", "user", "label", "endpoint")}
+        values = {k: item.get(k) for k in ("id", "url", "app_password", "user", "label", "rest_url")}
         if not all(v is None or isinstance(v, str) for v in values.values()):
             raise ConfigError(f"WP_SITES entry {n}: all values must be strings")
         out.append(
             _make_site(
                 f"WP_SITES entry {n}", (values["id"] or "").strip().lower(), values["url"] or "", values["app_password"],
-                values["user"], values["label"], values["endpoint"],
+                values["user"], values["label"], values["rest_url"],
             )
         )
     return out
@@ -153,10 +153,12 @@ def load_sites() -> dict[str, SiteConfig]:
         if not match:
             continue
         key = match.group(1)
+        if key.endswith("_REST") and f"WP_SITE_{key[:-5]}_URL" in os.environ:
+            continue  # WP_SITE_<KEY>_REST_URL belongs to site <KEY>
         prefix = f"WP_SITE_{key}_"
         site = _make_site(
             prefix + "*", key.lower().replace("_", "-"), _env(name) or "", _read_secret(prefix + "APP_PASSWORD"),
-            _env(prefix + "USER"), _env(prefix + "LABEL"), _env(prefix + "ENDPOINT"),
+            _env(prefix + "USER"), _env(prefix + "LABEL"), _env(prefix + "REST_URL"),
         )
         if site.id in sites:
             raise ConfigError(f"site id {site.id!r} is configured twice")

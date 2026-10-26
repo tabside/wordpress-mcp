@@ -33,10 +33,12 @@ def test_sites_from_env(base_env, tmp_path):
     base_env.setenv("WP_SITE_ZWEITE_SEITE_URL", "https://www.example.org/blog/")
     base_env.setenv("WP_SITE_ZWEITE_SEITE_APP_PASSWORD_FILE", str(secret))
     base_env.setenv("WP_SITE_ZWEITE_SEITE_USER", "mcp-bot")
+    base_env.setenv("WP_SITE_KUNDE_REST_URL", "https://kunde.example.com/?rest_route=")
     s = Settings.load()
+    assert s.sites["kunde"].rest_url == "https://kunde.example.com/?rest_route="
     assert set(s.sites) == {"kunde", "zweite-seite"}
     site = s.sites["zweite-seite"]
-    assert site.endpoint == "https://www.example.org/blog/wp-json/mcp/tabside"
+    assert site.rest_url == "https://www.example.org/blog/wp-json"
     assert site.app_password == "file secret" and site.username == "mcp-bot" and site.label == "www.example.org"
     assert "file secret" not in repr(site)
     assert s.sites["kunde"].username == "claude-mcp"

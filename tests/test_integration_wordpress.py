@@ -1,4 +1,4 @@
-"""End-to-end against a real WordPress with MCP Adapter and tabside-mcp.
+"""End-to-end against a real WordPress with only tabside-mcp installed (no MCP Adapter).
 
 Skipped unless WP_TEST_URL is set. CI starts a WordPress with SQLite via
 plugin/tests/setup-wordpress.sh; locally:
@@ -47,10 +47,10 @@ def wp(base_env):
     for key in ("WP_SITE_KUNDE_URL", "WP_SITE_KUNDE_APP_PASSWORD", "WP_SITE_KUNDE_LABEL"):
         base_env.delenv(key)
     base_env.setenv("WP_SITE_TEST_URL", WP_URL)
-    base_env.setenv("WP_SITE_TEST_ENDPOINT", f"{WP_URL}/?rest_route=/mcp/tabside")
+    base_env.setenv("WP_SITE_TEST_REST_URL", f"{WP_URL}/?rest_route=")
     base_env.setenv("WP_SITE_TEST_APP_PASSWORD", os.environ["WP_TEST_APP_PASSWORD"])
     base_env.setenv("WP_SITE_OTHER_URL", WP_URL)
-    base_env.setenv("WP_SITE_OTHER_ENDPOINT", f"{WP_URL}/?rest_route=/mcp/tabside")
+    base_env.setenv("WP_SITE_OTHER_REST_URL", f"{WP_URL}/?rest_route=")
     base_env.setenv("WP_SITE_OTHER_USER", "other")
     base_env.setenv("WP_SITE_OTHER_APP_PASSWORD", os.environ["WP_TEST_OTHER_APP_PASSWORD"])
     services = build_services(Settings.load())
@@ -74,9 +74,9 @@ def test_version_and_sites(wp):
     sites = ok(call(client, access, "list_sites", {"check": True}))["sites"]
     by_id = {s["id"]: s for s in sites}
     assert by_id["test"]["status"] == "ok" and by_id["test"]["plugin_version"]
-    assert by_id["other"]["status"] == "error"  # only claude-mcp may use the endpoint
+    assert by_id["other"]["status"] == "error"  # only claude-mcp may run the abilities
     v = ok(call(client, access, "get_version", {"site": "test"}))
-    assert v["plugin"]["mcp_adapter"] and v["plugin"]["allowed_user"] == "claude-mcp"
+    assert v["plugin"]["wordpress"] and v["plugin"]["allowed_user"] == "claude-mcp"
 
 
 def test_spec_run_draft_upload_link_update_rollback_trash(wp):
@@ -148,7 +148,7 @@ def test_validation_errors(wp):
     assert "nicht gefunden" in err(call(client, access, "post_get", {"site": "test", "id": 999999}))
     assert "Keine Felder" in err(call(client, access, "post_update", {"site": "test", "id": 1, "confirm": True}))
     assert "nicht erlaubt" in err(call(client, access, "media_upload", {"site": "test", "data_base64": "eA==", "filename": "x.php", "confirm": True}))
-    assert "Anmeldung" in err(call(client, access, "post_list", {"site": "other"}))
+    assert "claude-mcp" in err(call(client, access, "post_list", {"site": "other"}))
 
 
 def test_past_date_publishes_backdated_and_page(wp):

@@ -37,10 +37,6 @@ final class Tabside_MCP_Plugin {
 		return version_compare( $version, TABSIDE_MCP_MIN_WP, '>=' ) && function_exists( 'wp_register_ability' );
 	}
 
-	public static function adapter_active() {
-		return class_exists( '\WP\MCP\Core\McpAdapter' );
-	}
-
 	/**
 	 * Login des einzigen Benutzers, der die Abilities ausführen darf.
 	 */
@@ -62,9 +58,6 @@ final class Tabside_MCP_Plugin {
 				get_bloginfo( 'version' )
 			);
 		} else {
-			if ( ! self::adapter_active() ) {
-				$messages[] = __( 'tabside MCP: Das Plugin "MCP Adapter" ist nicht aktiv. Ohne den Adapter ist der MCP-Endpunkt nicht erreichbar. Download: https://github.com/WordPress/mcp-adapter/releases/latest', 'tabside-mcp' );
-			}
 			if ( ! get_user_by( 'login', self::allowed_login() ) ) {
 				$messages[] = sprintf(
 					/* translators: %s: user login */
@@ -121,8 +114,9 @@ final class Tabside_MCP_Plugin {
 	}
 
 	/**
-	 * Eigener MCP-Server mit den tabside-Abilities als direkte Tools:
-	 * /wp-json/mcp/tabside
+	 * Optional: Ist das Plugin "MCP Adapter" aktiv, gibt es zusätzlich einen MCP-Server
+	 * /wp-json/mcp/tabside. Das Gateway braucht ihn nicht, es nutzt den REST-Endpunkt des Kerns
+	 * /wp-json/wp-abilities/v1/abilities/tabside/<name>/run.
 	 *
 	 * @param \WP\MCP\Core\McpAdapter $adapter Adapter.
 	 */
