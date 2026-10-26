@@ -1,5 +1,9 @@
 # Changelog
 
+## Compose
+
+* `env_file: stack.env`: Einzelvariablen pro Seite (`WP_SITE_<KEY>_*`) kommen aus den Portainer-Stack-Variablen in den Container. Neue Seiten lassen sich ergänzen, ohne `WP_SITES` oder die Compose-Datei zu ändern.
+
 ## Plugin tabside-mcp 2.0.0 / Gateway 1.1.0
 
 Volle WordPress-Administration über den Connector, inklusive Elementor.

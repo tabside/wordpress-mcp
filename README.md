@@ -193,6 +193,17 @@ location ~ ^(/wordpress(/|$)|/\.well-known/(oauth-authorization-server|openid-co
  {"id":"zweite","url":"https://www.example.org","app_password":"...","user":"redaktion","rest_url":"https://www.example.org/?rest_route="}]
 ```
 
+Weitere Seiten lassen sich auch ohne Anfassen von `WP_SITES` ergänzen, mit einem Block Stack-Variablen pro Seite (`KEY` aus A-Z, 0-9, `_`; die `site`-id ist `KEY` klein geschrieben mit `-` statt `_`):
+
+```
+WP_SITE_KUNDE_URL=https://www.example.com
+WP_SITE_KUNDE_USER=redaktion
+WP_SITE_KUNDE_APP_PASSWORD=xxxx xxxx xxxx xxxx xxxx xxxx
+WP_SITE_KUNDE_LABEL=Kunde AG
+```
+
+Portainer legt alle Stack-Variablen in `stack.env` ab, die Compose-Datei bindet sie per `env_file` ein. Eine neue Seite braucht so nur neue Variablen und ein Neuausrollen des Stacks. Ausserhalb von Portainer (`docker compose` von Hand) eine `stack.env` neben die Compose-Datei legen (darf leer sein).
+
 `id` (a-z, 0-9, -) ist der Wert für `site`. `user` (Pflicht) ist der WordPress-Benutzer des Anwendungspassworts, `rest_url` standardmässig `<url>/wp-json` (bei einfachen Permalinks `<url>/?rest_route=`). Nur https (http nur für localhost).
 
 ### In Claude verbinden

@@ -1,7 +1,10 @@
 # wordpress-mcp: ein Container, SQLite (OAuth-Clients und Tokens) im Volume "data".
 # Portainer: Git-Stack aus diesem Repository (Build-Methode Repository), die Werte aus
 # .env.example als Stack-Umgebungsvariablen. Die Seiten samt Anwendungspasswörtern stehen
-# nur in WP_SITES (Stack-Variable), nie im Repo.
+# nur in Stack-Variablen (WP_SITES oder WP_SITE_<KEY>_*), nie im Repo.
+# Portainer schreibt alle Stack-Variablen in stack.env; über env_file kommen so auch die
+# Einzelvariablen pro Seite (WP_SITE_<KEY>_URL, _USER, _APP_PASSWORD, _LABEL, _REST_URL)
+# in den Container, ohne dass für jede neue Seite die Compose-Datei geändert werden muss.
 # Veröffentlicht wird nur der API-Port, TLS macht der Reverse-Proxy (NPM).
 #
 # cap_drop/security_opt sind bewusst nicht gesetzt: Portainer lehnt sie für Nicht-Admin-
@@ -13,6 +16,8 @@ services:
     image: ghcr.io/tabside/wordpress-mcp:${WORDPRESS_MCP_TAG:-latest}
     pull_policy: always
     restart: unless-stopped
+    env_file:
+      - stack.env
     environment:
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
       GATEWAY_USERS: ${GATEWAY_USERS}
