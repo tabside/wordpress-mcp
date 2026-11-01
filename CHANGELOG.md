@@ -1,5 +1,9 @@
 # Changelog
 
+## Plugin tabside-mcp 2.1.0
+
+* `site_health` liefert neu den Block `wptc` (WP Time Capsule): aktiv, Speicherdauer in Tagen, Backup-Ziel, letzte erfolgreiche Sicherung (GMT) und deren Alter in Stunden; `null`, wenn WPTC nicht installiert ist. Damit lässt sich der Backup-Stand auch bei Seiten ausserhalb des eigenen Plesk prüfen.
+
 ## Compose
 
 * `env_file: stack.env`: Einzelvariablen pro Seite (`WP_SITE_<KEY>_*`) kommen aus den Portainer-Stack-Variablen in den Container. Neue Seiten lassen sich ergänzen, ohne `WP_SITES` oder die Compose-Datei zu ändern.

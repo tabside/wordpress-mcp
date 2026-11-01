@@ -807,7 +807,32 @@ final class Tabside_MCP_Admin {
 			),
 			'object_cache' => (bool) wp_using_ext_object_cache(),
 			'https'        => 0 === strpos( home_url(), 'https://' ),
+			'wptc'         => self::wptc_status(),
 			'tests'        => $results,
+		);
+	}
+
+	/**
+	 * Stand von WP Time Capsule (Speicherdauer, Ziel, letzte erfolgreiche Sicherung), nur lesend.
+	 * null, wenn WPTC nicht installiert ist.
+	 */
+	public static function wptc_status() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'wptc_options';
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $table ) ) ) !== $table ) {
+			return null;
+		}
+		$rows = $wpdb->get_results(
+			"SELECT name, value FROM `{$table}` WHERE name IN ('revision_limit','default_repo','last_backup_success_complete_time')", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			OBJECT_K
+		);
+		$last = isset( $rows['last_backup_success_complete_time'] ) ? (int) $rows['last_backup_success_complete_time']->value : 0;
+		return array(
+			'active'                 => is_plugin_active( 'wp-time-capsule/wp-time-capsule.php' ),
+			'revision_limit_days'    => isset( $rows['revision_limit'] ) ? (int) $rows['revision_limit']->value : null,
+			'repo'                   => isset( $rows['default_repo'] ) ? $rows['default_repo']->value : null,
+			'last_success_gmt'       => $last ? gmdate( 'Y-m-d H:i:s', $last ) : null,
+			'last_success_age_hours' => $last ? (int) floor( ( time() - $last ) / 3600 ) : null,
 		);
 	}
 
