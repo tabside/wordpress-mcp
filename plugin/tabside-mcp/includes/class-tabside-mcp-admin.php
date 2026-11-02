@@ -323,6 +323,8 @@ final class Tabside_MCP_Admin {
 		if ( ! empty( $input['refresh'] ) ) {
 			// Sonst liefert der eigene Updater bis zu 6 Stunden alte Release-Angaben von GitHub.
 			Tabside_MCP_Updater::flush();
+			// Ohne geleerten Update-Cache fragt wp_update_plugins() höchstens alle 12 Stunden neu an.
+			wp_clean_plugins_cache();
 			wp_update_plugins();
 		}
 		$updates = get_site_transient( 'update_plugins' );
@@ -402,6 +404,8 @@ final class Tabside_MCP_Admin {
 		if ( self::SELF_PLUGIN === $file ) {
 			Tabside_MCP_Updater::flush();
 		}
+		// Ohne geleerten Update-Cache fragt wp_update_plugins() höchstens alle 12 Stunden neu an.
+		wp_clean_plugins_cache();
 		wp_update_plugins();
 		$updates = get_site_transient( 'update_plugins' );
 		$update  = $updates->response[ $file ] ?? null;
@@ -605,6 +609,7 @@ final class Tabside_MCP_Admin {
 	public static function theme_list( $input ) {
 		self::admin_includes();
 		if ( ! empty( $input['refresh'] ) ) {
+			wp_clean_themes_cache();
 			wp_update_themes();
 		}
 		$updates = get_site_transient( 'update_themes' );
@@ -659,6 +664,7 @@ final class Tabside_MCP_Admin {
 		if ( ! $theme->exists() ) {
 			return new WP_Error( 'tabside_mcp_theme_not_found', sprintf( 'Theme "%s" nicht gefunden.', $stylesheet ), array( 'status' => 404 ) );
 		}
+		wp_clean_themes_cache();
 		wp_update_themes();
 		$updates = get_site_transient( 'update_themes' );
 		if ( empty( $updates->response[ $stylesheet ] ) ) {

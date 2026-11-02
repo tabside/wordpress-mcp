@@ -1,5 +1,9 @@
 # Changelog
 
+## Plugin tabside-mcp 2.2.2
+
+* `plugin_update`, `theme_update` sowie `plugin_list`/`theme_list` mit `refresh=true` leeren vorher den Update-Cache von WordPress (wie "Erneut prüfen" im wp-admin). `wp_update_plugins()` fragt sonst höchstens alle 12 Stunden neu an, darum meldete `plugin_update` nach einem neuen Release "kein Update verfügbar". Behebt den Fall, den 2.2.1 nur zur Hälfte abgedeckt hat.
+
 ## Plugin tabside-mcp 2.2.1
 
 * `plugin_update` für tabside-mcp und `plugin_list` mit `refresh=true` leeren vorher den Release-Zwischenspeicher des eigenen Updaters. Bisher meldeten sie bis zu 6 Stunden nach einem neuen Release noch "kein Update verfügbar".
