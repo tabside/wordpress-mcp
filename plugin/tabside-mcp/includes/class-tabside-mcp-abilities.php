@@ -130,7 +130,9 @@ final class Tabside_MCP_Abilities {
 			$result['cache'] = Tabside_MCP_Cache::flush();
 		}
 
-		if ( $posts ) {
+		if ( isset( $result['audit_target'] ) ) {
+			$target = (string) $result['audit_target'];
+		} elseif ( $posts ) {
 			$target = 'post ' . implode( ',', $posts );
 		} else {
 			$target = '';
@@ -151,6 +153,7 @@ final class Tabside_MCP_Abilities {
 			$backup = implode( ',', (array) $result['backup_ids'] );
 		}
 		Tabside_MCP_Store::log( $slug, $target, $backup );
+		unset( $result['audit_target'] );
 	}
 
 	/**

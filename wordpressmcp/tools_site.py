@@ -108,7 +108,10 @@ def register_site_tools(mcp: MCPServer, runner: ToolRunner) -> None:
     ) -> dict[str, Any]:
         return await runner.write(site, "option_update", {"values": values, "confirm": confirm})
 
-    @mcp.tool(description="Stellt Einstellungen aus einer Sicherung wieder her (Standard: neueste)." + CONFIRM_DOC, annotations=WRITE)
+    @mcp.tool(
+        description="Stellt Einstellungen aus einer Sicherung wieder her (Standard: neueste). Mit der backup_id von wptc_set_revision_limit auch die WPTC-Speicherdauer." + CONFIRM_DOC,
+        annotations=WRITE,
+    )
     async def option_rollback(site: str, backup_id: BackupId = None, confirm: bool = False) -> dict[str, Any]:
         return await runner.write(site, "option_rollback", {"backup_id": backup_id, "confirm": confirm})
 

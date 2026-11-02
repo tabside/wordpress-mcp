@@ -42,7 +42,7 @@ def test_every_plugin_ability_has_a_tool_and_the_right_method(gateway, access):
     client, _, _ = gateway
     listed = tools(client, access)
     abilities = {name.replace("-", "_") for name in plugin_abilities()}
-    assert len(abilities) == 68
+    assert len(abilities) == 69
     assert abilities == set(listed) - GATEWAY_ONLY
     for name, tool in listed.items():
         if name in GATEWAY_ONLY:
@@ -106,12 +106,14 @@ FORWARD = [
     ("site_health", {}, {}),
     ("cache_flush", {"post_id": 8, "confirm": True}, {"post_id": 8, "confirm": True}),
     ("user_update", {"user_id": 3, "role": "author"}, {"user_id": 3, "role": "author"}),
+    ("wptc_set_revision_limit", {"days": 14}, {"days": 14, "confirm": False}),
+    ("wptc_set_revision_limit", {}, {"days": 30, "confirm": False}),
     ("application_password_list", {}, {}),
     ("audit_log", {"limit": 5}, {"limit": "5"}),
 ]
 
 
-@pytest.mark.parametrize("tool,args,expected", FORWARD, ids=[f[0] for f in FORWARD])
+@pytest.mark.parametrize("tool,args,expected", FORWARD, ids=[f"{f[0]}-{i}" for i, f in enumerate(FORWARD)])
 def test_forwarding(gateway, access, tool, args, expected):
     client, fake, _ = gateway
     res = call(client, access, tool, {"site": "kunde", **args})
@@ -179,3 +181,11 @@ def test_read_scope_cannot_use_admin_writes(gateway):
     res = call(client, access, "plugin_install", {"site": "kunde", "slug": "redirection", "confirm": True})
     assert res["isError"] is True and "wordpress:write" in res["content"][0]["text"]
     assert not [c for c in fake.calls if c[0] == "tabside-plugin-install"]
+
+
+def test_wptc_days_range_checked_in_gateway(gateway, access):
+    client, fake, _ = gateway
+    for days in (0, 366):
+        res = call(client, access, "wptc_set_revision_limit", {"site": "kunde", "days": days, "confirm": True})
+        assert res["isError"] is True
+    assert not [c for c in fake.calls if c[0] == "tabside-wptc-set-revision-limit"]

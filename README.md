@@ -59,7 +59,7 @@ Jedes Tool ausser `get_version`, `list_sites` und `docx_to_content` hat den Para
 | `menu_item_create`, `menu_item_update`, `menu_item_move`, `menu_item_remove` | schreiben | Menüeinträge (eigene URL, Seite/Beitrag, Kategorie); Entfernen = Papierkorb, Untereinträge rücken nach oben |
 | `menu_locations_set` | schreiben | Menü-Positionen zuweisen |
 | `menu_rollback` | schreiben | Menü oder Positionen aus Sicherung |
-| `option_get`, `option_update`, `option_rollback` | lesen / schreiben | Einstellungen aus einer festen Whitelist (Allgemein, Lesen, Diskussion, Medien, Permalinks) |
+| `option_get`, `option_update`, `option_rollback` | lesen / schreiben | Einstellungen aus einer festen Whitelist (Allgemein, Lesen, Diskussion, Medien, Permalinks); `option_rollback` mit `backup_id` stellt auch die WPTC-Speicherdauer zurück |
 | `custom_css_get`, `custom_css_update`, `custom_css_rollback` | lesen / schreiben | Zusätzliches CSS des aktiven Themes, Vorschau mit geänderten Zeilen |
 | `widget_list`, `widget_update`, `widget_rollback` | lesen / schreiben | Klassische Widgets und Seitenleisten |
 | `redirect_list`, `redirect_create`, `redirect_update` | lesen / schreiben | Weiterleitungen, nur wenn das Plugin Redirection aktiv ist; abschalten statt löschen |
@@ -76,6 +76,7 @@ Jedes Tool ausser `get_version`, `list_sites` und `docx_to_content` hat den Para
 | `core_update_check`, `core_update` | lesen / schreiben | WordPress-Updates, `core_update` nur Minor-Updates im gleichen Zweig |
 | `site_health` | lesen | Direkte Website-Zustand-Tests, PHP, Speicher, Cron, Debug, Objekt-Cache |
 | `cache_flush` | schreiben | Objekt-Cache, Elementor-CSS und erkannte Cache-Plugins |
+| `wptc_set_revision_limit` | schreiben | WP Time Capsule: Speicherdauer der Sicherungen in Tagen (1 bis 365), nur wenn WPTC aktiv ist; alter Wert gesichert, zurück mit `option_rollback` + `backup_id` |
 | `user_list`, `user_get` | lesen | Benutzer mit Rolle, Anwendungspasswörtern (ohne Passwort) und letzter Nutzung |
 | `user_update` | schreiben | Nur Anzeigename, Vor-/Nachname, Biografie, Rolle |
 | `application_password_list` | lesen | Eigene Anwendungspasswörter (Name, erstellt, zuletzt benutzt) |
@@ -260,7 +261,7 @@ python -m pytest -q
 
 Die Unit-Tests spielen OAuth, Weiterleitung an ein simuliertes Plugin (GET für lesende, POST für schreibende Abilities, für jedes Tool), Schemas, Sitzungserneuerung, confirm, Fehlermeldungen, Antwort-Grössenlimit, Audit-Log, Konfiguration, Downloads und die Word-Konvertierung durch. Ein Test vergleicht die Abilities im Plugin-Code mit den Tools des Gateways.
 
-Der Integrationstest prüft die ganze Kette gegen ein echtes WordPress mit SQLite, Elementor und Redirection, ohne MCP Adapter, in CI mit WordPress 6.9 und der aktuellen Version: Entwurf mit Datum in der Zukunft, Uploads, Update mit Sicherung, Rollback, Planen, Papierkorb, Fehlerfälle; Elementor-Seite mit Container, Überschrift, Text mit Sonderzeichen, Icon-Box mit Popup-Link: Duplizieren von Seite und Popup ohne Datenverlust und Escape-Fehler, Seite rendert ohne PHP-Fehler mit den Texten, `elementor_replace_text` mit `expected_count`, `elementor_copy_layout` mit Popup-Zuordnung auf den eigenen Beitragstyp `service`, Rollback auf den exakten JSON-Stand, CSS-Datei vorhanden; Element-Operationen; Sicherheitsregeln (Redakteur ohne Admin-Tools, Whitelist, Sperren); Menüs, Einstellungen, CSS, Widgets, Weiterleitungen, Plugins, Website-Zustand, Protokoll.
+Der Integrationstest prüft die ganze Kette gegen ein echtes WordPress mit SQLite, Elementor, Redirection und WP Time Capsule, ohne MCP Adapter, in CI mit WordPress 6.9 und der aktuellen Version: Entwurf mit Datum in der Zukunft, Uploads, Update mit Sicherung, Rollback, Planen, Papierkorb, Fehlerfälle; Elementor-Seite mit Container, Überschrift, Text mit Sonderzeichen, Icon-Box mit Popup-Link: Duplizieren von Seite und Popup ohne Datenverlust und Escape-Fehler, Seite rendert ohne PHP-Fehler mit den Texten, `elementor_replace_text` mit `expected_count`, `elementor_copy_layout` mit Popup-Zuordnung auf den eigenen Beitragstyp `service`, Rollback auf den exakten JSON-Stand, CSS-Datei vorhanden; Element-Operationen; Sicherheitsregeln (Redakteur ohne Admin-Tools, Whitelist, Sperren); Menüs, Einstellungen, CSS, Widgets, Weiterleitungen, Plugins, Website-Zustand, Protokoll.
 
 ```bash
 plugin/tests/setup-wordpress.sh /tmp/wp 8871 6.9 > /tmp/wp.txt   # oder latest

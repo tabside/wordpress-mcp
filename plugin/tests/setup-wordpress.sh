@@ -1,6 +1,6 @@
 #!/bin/bash
 # Local or CI test WordPress with SQLite and tabside-mcp (symlinked), without MCP Adapter, with Elementor,
-# Redirection and a custom post type "service" (Elementor enabled).
+# Redirection, WP Time Capsule and a custom post type "service" (Elementor enabled).
 #
 #   plugin/tests/setup-wordpress.sh <dir> <port> [wordpress-version]
 #
@@ -19,6 +19,7 @@ fetch sqlite.zip https://downloads.wordpress.org/plugin/sqlite-database-integrat
 fetch wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
 fetch elementor.zip https://downloads.wordpress.org/plugin/elementor.latest-stable.zip
 fetch redirection.zip https://downloads.wordpress.org/plugin/redirection.latest-stable.zip
+fetch wp-time-capsule.zip https://downloads.wordpress.org/plugin/wp-time-capsule.latest-stable.zip
 WP="php $CACHE/wp-cli.phar --allow-root --path=$D"
 
 rm -rf "$D" "$D.tmp"; mkdir -p "$D.tmp"; unzip -q "$ZIP" -d "$D.tmp"; mv "$D.tmp/wordpress" "$D"; rm -rf "$D.tmp"
@@ -46,7 +47,8 @@ $WP plugin activate tabside-mcp >/dev/null
 mkdir -p "$D/wp-content/mu-plugins"; cp "$REPO/plugin/tests/test-mu-plugin.php" "$D/wp-content/mu-plugins/"
 unzip -q "$CACHE/elementor.zip" -d "$D/wp-content/plugins/"
 unzip -q "$CACHE/redirection.zip" -d "$D/wp-content/plugins/"
-$WP plugin activate elementor redirection >/dev/null
+unzip -q "$CACHE/wp-time-capsule.zip" -d "$D/wp-content/plugins/"
+$WP plugin activate elementor redirection wp-time-capsule >/dev/null
 $WP redirection database install >/dev/null
 $WP option update elementor_cpt_support '["page","post","service"]' --format=json >/dev/null
 $WP user create claude-mcp claude-mcp@example.com --role=editor --user_pass="$(openssl rand -hex 16)" >/dev/null

@@ -205,6 +205,22 @@ final class Tabside_MCP_Admin {
 				},
 				'execute'     => array( __CLASS__, 'cache_flush' ),
 			),
+			'wptc-set-revision-limit' => array(
+				'label'       => 'WPTC-Speicherdauer setzen',
+				'description' => 'Setzt bei WP Time Capsule die Speicherdauer der Sicherungen (revision_limit, in Tagen) in der WPTC-Tabelle. Nur wenn WPTC aktiv ist. Alter Wert wird gesichert (option-rollback mit backup_id). Ohne confirm=true nur Vorschau.' . $admin_note,
+				'properties'  => array(
+					'days'    => array(
+						'type'        => 'integer',
+						'minimum'     => 1,
+						'maximum'     => 365,
+						'default'     => 30,
+						'description' => 'Speicherdauer in Tagen, 1 bis 365.',
+					),
+					'confirm' => $confirm,
+				),
+				'permission'  => $cap( 'manage_options' ),
+				'execute'     => array( __CLASS__, 'wptc_set_revision_limit' ),
+			),
 			'user-list'               => array(
 				'label'       => 'Benutzer auflisten',
 				'description' => 'Benutzer mit Login, Name, E-Mail, Rolle, Registrierung, Anzahl Anwendungspasswörter und letzter Nutzung eines Anwendungspassworts.',
@@ -834,6 +850,161 @@ final class Tabside_MCP_Admin {
 			'last_success_gmt'       => $last ? gmdate( 'Y-m-d H:i:s', $last ) : null,
 			'last_success_age_hours' => $last ? (int) floor( ( time() - $last ) / 3600 ) : null,
 		);
+	}
+
+	/**
+	 * Speicherdauer von WP Time Capsule setzen (wie wptc_set_revision_limit im plesk-mcp).
+	 */
+	public static function wptc_set_revision_limit( $input ) {
+		$table = self::wptc_table();
+		if ( is_wp_error( $table ) ) {
+			return $table;
+		}
+		$days = (int) ( $input['days'] ?? 30 );
+		if ( $days < 1 || $days > 365 ) {
+			return new WP_Error( 'tabside_mcp_wptc_days', 'days muss zwischen 1 und 365 liegen.' );
+		}
+		$old = self::wptc_revision_limit( $table );
+		if ( empty( $input['confirm'] ) ) {
+			return Tabside_MCP_Abilities::preview_result(
+				array(
+					'revision_limit_days' => array(
+						'old' => $old,
+						'new' => $days,
+					),
+				),
+				$old === $days ? array( 'Die Speicherdauer ist bereits so gesetzt.' ) : array()
+			);
+		}
+		$backup = Tabside_MCP_Store::backup(
+			'wptc',
+			'revision_limit',
+			array(
+				'exists' => null !== $old,
+				'value'  => $old,
+			)
+		);
+		$written = self::wptc_write_revision_limit( $table, $days );
+		if ( is_wp_error( $written ) ) {
+			return $written;
+		}
+		$now = self::wptc_revision_limit( $table );
+		return array(
+			'confirmed'           => true,
+			'backup_id'           => $backup,
+			'revision_limit_days' => array(
+				'old' => $old,
+				'new' => $now,
+			),
+			'verify'              => array( 'revision_limit' => $now === $days ),
+			'audit_target'        => 'wptc revision_limit ' . $days,
+		);
+	}
+
+	/**
+	 * Stellt revision_limit aus einer Sicherung (Art wptc) wieder her, aufgerufen von option-rollback.
+	 *
+	 * @param array $backup Eintrag aus Tabside_MCP_Store.
+	 * @param bool  $confirm Ausführen oder nur Vorschau.
+	 * @return array|WP_Error
+	 */
+	public static function wptc_rollback( array $backup, $confirm ) {
+		$table = self::wptc_table();
+		if ( is_wp_error( $table ) ) {
+			return $table;
+		}
+		$target = $backup['data']['exists'] ? (int) $backup['data']['value'] : null;
+		$old    = self::wptc_revision_limit( $table );
+		if ( ! $confirm ) {
+			return Tabside_MCP_Abilities::preview_result(
+				array(
+					'backup_id'           => $backup['id'],
+					'backup_time'         => $backup['created_gmt'] . ' UTC',
+					'revision_limit_days' => array(
+						'old' => $old,
+						'new' => $target,
+					),
+				),
+				null === $target ? array( 'revision_limit war vorher nicht gesetzt und wird entfernt (WPTC nimmt dann seinen Standard).' ) : array()
+			);
+		}
+		$safety = Tabside_MCP_Store::backup(
+			'wptc',
+			'revision_limit',
+			array(
+				'exists' => null !== $old,
+				'value'  => $old,
+			)
+		);
+		global $wpdb;
+		if ( null === $target ) {
+			$wpdb->delete( $table, array( 'name' => 'revision_limit' ) );
+		} else {
+			$written = self::wptc_write_revision_limit( $table, $target );
+			if ( is_wp_error( $written ) ) {
+				return $written;
+			}
+		}
+		$now = self::wptc_revision_limit( $table );
+		return array(
+			'confirmed'           => true,
+			'restored_backup'     => $backup['id'],
+			'safety_backup_id'    => $safety,
+			'revision_limit_days' => array(
+				'old' => $old,
+				'new' => $now,
+			),
+			'verify'              => array( 'revision_limit' => $now === $target ),
+			'audit_target'        => 'wptc revision_limit ' . ( null === $target ? '(entfernt)' : $target ),
+		);
+	}
+
+	/**
+	 * Name der WPTC-Tabelle, wenn WPTC aktiv ist und die Tabelle existiert.
+	 *
+	 * @return string|WP_Error
+	 */
+	private static function wptc_table() {
+		global $wpdb;
+		self::admin_includes();
+		if ( ! is_plugin_active( 'wp-time-capsule/wp-time-capsule.php' ) ) {
+			return new WP_Error( 'tabside_mcp_wptc_inactive', 'WP Time Capsule ist auf dieser Seite nicht aktiv.' );
+		}
+		$table = $wpdb->prefix . 'wptc_options';
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $table ) ) ) !== $table ) {
+			return new WP_Error( 'tabside_mcp_wptc_table', sprintf( 'WPTC ist aktiv, aber die Tabelle %s fehlt.', $table ) );
+		}
+		return $table;
+	}
+
+	/**
+	 * @return int|null Tage oder null, wenn nicht gesetzt.
+	 */
+	private static function wptc_revision_limit( $table ) {
+		global $wpdb;
+		$value = $wpdb->get_var( "SELECT value FROM `{$table}` WHERE name = 'revision_limit' LIMIT 1" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		return null === $value || '' === $value ? null : (int) $value;
+	}
+
+	/**
+	 * @return true|WP_Error
+	 */
+	private static function wptc_write_revision_limit( $table, $days ) {
+		global $wpdb;
+		$exists = null !== $wpdb->get_var( "SELECT name FROM `{$table}` WHERE name = 'revision_limit' LIMIT 1" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$result = $exists
+			? $wpdb->update( $table, array( 'value' => (string) $days ), array( 'name' => 'revision_limit' ) )
+			: $wpdb->insert(
+				$table,
+				array(
+					'name'  => 'revision_limit',
+					'value' => (string) $days,
+				)
+			);
+		if ( false === $result ) {
+			return new WP_Error( 'tabside_mcp_wptc_write', 'Schreiben in die WPTC-Tabelle fehlgeschlagen: ' . $wpdb->last_error );
+		}
+		return true;
 	}
 
 	public static function cache_flush( $input ) {

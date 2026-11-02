@@ -216,7 +216,7 @@ final class Tabside_MCP_Site {
 			),
 			'option-rollback'     => array(
 				'label'       => 'Einstellungen zurückholen',
-				'description' => 'Stellt Einstellungen aus einer Sicherung wieder her (Standard: neueste). Ohne confirm=true nur Vorschau.',
+				'description' => 'Stellt Einstellungen aus einer Sicherung wieder her (Standard: neueste). Mit der backup_id von wptc-set-revision-limit auch die WPTC-Speicherdauer. Ohne confirm=true nur Vorschau.',
 				'flush'       => 'site',
 				'properties'  => array(
 					'backup_id' => $backup,
@@ -959,9 +959,14 @@ final class Tabside_MCP_Site {
 	}
 
 	public static function option_rollback( $input ) {
-		$backup = Tabside_MCP_Store::find_backup( array( 'option' ), $input['backup_id'] ?? null );
+		// WPTC-Sicherungen (wptc-set-revision-limit) nur mit ausdrücklicher backup_id, ohne ID gilt die neueste Einstellungs-Sicherung.
+		$kinds  = empty( $input['backup_id'] ) ? array( 'option' ) : array( 'option', 'wptc' );
+		$backup = Tabside_MCP_Store::find_backup( $kinds, $input['backup_id'] ?? null );
 		if ( null === $backup ) {
 			return new WP_Error( 'tabside_mcp_no_backup', 'Keine passende Sicherung vorhanden.' );
+		}
+		if ( 'wptc' === $backup['kind'] ) {
+			return Tabside_MCP_Admin::wptc_rollback( $backup, ! empty( $input['confirm'] ) );
 		}
 		$changes = array();
 		foreach ( (array) $backup['data'] as $name => $old ) {

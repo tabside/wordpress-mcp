@@ -159,7 +159,7 @@ def test_tools_list(gateway, access):
         "get_version", "list_sites", "post_list", "post_get", "category_list", "tag_list", "media_list",
         "post_create", "post_update", "media_upload", "post_trash", "post_rollback", "docx_to_content",
     } <= names
-    assert len(names) == 70
+    assert len(names) == 71
 
 
 def test_account_page_disconnect(gateway, access):

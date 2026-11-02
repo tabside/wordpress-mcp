@@ -1,5 +1,10 @@
 # Changelog
 
+## Plugin tabside-mcp 2.2.0
+
+* Neues Tool `wptc_set_revision_limit` (wie im plesk-mcp): setzt bei WP Time Capsule die Speicherdauer der Sicherungen (`revision_limit` in `{prefix}wptc_options`, 1 bis 365 Tage, Vorgabe 30), nur wenn WPTC aktiv ist. Ohne `confirm=true` Vorschau mit altem und neuem Wert, danach Kontrolle durch erneutes Auslesen. Der alte Wert wird gesichert; zurückstellen mit `option_rollback` und der zurückgegebenen `backup_id`. Nur für Administratoren (`manage_options`), Eintrag im `audit_log`.
+* `option_rollback` ohne `backup_id` nimmt weiterhin nur Sicherungen von Einstellungen, WPTC-Sicherungen nur mit ausdrücklicher ID. `site_health` unverändert.
+
 ## Plugin tabside-mcp 2.1.0
 
 * `site_health` liefert neu den Block `wptc` (WP Time Capsule): aktiv, Speicherdauer in Tagen, Backup-Ziel, letzte erfolgreiche Sicherung (GMT) und deren Alter in Stunden; `null`, wenn WPTC nicht installiert ist. Damit lässt sich der Backup-Stand auch bei Seiten ausserhalb des eigenen Plesk prüfen.

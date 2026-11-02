@@ -86,6 +86,20 @@ def register_admin_tools(mcp: MCPServer, runner: ToolRunner) -> None:
     async def cache_flush(site: str, post_id: int | None = None, confirm: bool = False) -> dict[str, Any]:
         return await runner.write(site, "cache_flush", {"post_id": post_id, "confirm": confirm})
 
+    @mcp.tool(
+        description=(
+            "Setzt bei WP Time Capsule die Speicherdauer der Sicherungen (revision_limit, in Tagen) in der WPTC-Tabelle der Seite, "
+            "nur wenn WPTC aktiv ist. days 1..365 (Vorgabe 30). Die Vorschau zeigt alten und neuen Wert, danach wird erneut ausgelesen (verify). "
+            "Der alte Wert wird gesichert: zurückstellen mit option_rollback und der zurückgegebenen backup_id. Aktuellen Wert zeigt site_health (wptc)."
+            + CONFIRM_DOC + ADMIN_DOC
+        ),
+        annotations=WRITE,
+    )
+    async def wptc_set_revision_limit(
+        site: str, days: Annotated[int, Field(ge=1, le=365, description="Speicherdauer in Tagen, 1 bis 365.")] = 30, confirm: bool = False
+    ) -> dict[str, Any]:
+        return await runner.write(site, "wptc_set_revision_limit", {"days": days, "confirm": confirm})
+
     @mcp.tool(description="Benutzer mit Login, Name, E-Mail, Rolle, Registrierung, Anzahl Anwendungspasswörter und letzter Nutzung eines Anwendungspassworts.", annotations=READ_ONLY)
     async def user_list(site: str, role: str | None = None, search: str | None = None, limit: int = 50, page: int = 1) -> dict[str, Any]:
         return await runner.read(site, "user_list", {"role": role, "search": search, "limit": limit, "page": page})

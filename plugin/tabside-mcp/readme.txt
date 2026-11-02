@@ -1,7 +1,7 @@
 === tabside MCP ===
 Requires at least: 6.9
 Requires PHP: 7.4
-Stable tag: 2.1.0
+Stable tag: 2.2.0
 License: GPLv2 or later
 
 WordPress-Seite über das WordPress-MCP-Gateway verwalten: Inhalte, Elementor, Menüs, Einstellungen, Plugins, Themes, Benutzer.
@@ -17,7 +17,7 @@ post-update, post-duplicate, media-upload, post-trash, post-rollback, term-creat
 Elementor (wenn aktiv): elementor-info, -get, -find, -references, -template-list, -update-element, -replace-text,
 -insert-element, -move-element, -remove-element, -copy-layout, -set-conditions (Pro), -page-settings-update.
 Navigation und Einstellungen: menu-*, option-get/-update/-rollback (Whitelist), custom-css-*, widget-*, redirect-* (Redirection).
-Administration: plugin-*, theme-*, core-update-check, core-update (nur Minor), site-health, cache-flush, user-list,
+Administration: plugin-*, theme-*, core-update-check, core-update (nur Minor), site-health, cache-flush, wptc-set-revision-limit, user-list,
 user-get, user-update, application-password-list, audit-log.
 
 Schreibende Abilities ändern nur mit confirm=true, sonst Vorschau. Vorher wird gesichert (Beiträge und Elementor im
@@ -38,6 +38,9 @@ Updates kommen automatisch aus den GitHub-Releases von tabside/wordpress-mcp.
 Bei WordPress unter 6.9 zeigt das Plugin Administratoren einen Hinweis.
 
 == Changelog ==
+
+= 2.2.0 =
+* wptc-set-revision-limit: Speicherdauer von WP Time Capsule setzen (1 bis 365 Tage), mit Vorschau, Kontrolle, Sicherung (option-rollback mit backup_id) und Protokoll. Nur Administratoren.
 
 = 2.0.0 =
 * Volle Administration: alle Beitragstypen, post-duplicate, Begriffe, Elementor bis auf Widget-Ebene, Menüs, Einstellungen (Whitelist), Customizer-CSS, Widgets, Weiterleitungen (Redirection), Plugins, Themes, Core-Minor-Updates, Website-Zustand, Cache, Benutzer, Protokoll. Details in CHANGELOG.md im Repo.

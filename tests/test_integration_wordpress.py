@@ -506,3 +506,36 @@ def test_admin_plugins_health_audit(wp):
     assert all("abcd" not in str(e) for e in log)
     own = ok(call(client, access, "audit_log", {"site": "test", "limit": 500}))["entries"]
     assert own and all(e["user"] == "claude-mcp" for e in own)  # editors only see their own entries
+
+
+def test_wptc_set_revision_limit(wp):
+    client, access = wp
+    a = {"site": "admin"}
+    assert "Berechtigung" in err(call(client, access, "wptc_set_revision_limit", {"site": "test", "days": 14}))  # editor
+    before = ok(call(client, access, "site_health", a))["wptc"]
+    assert before["active"] is True and before["revision_limit_days"]
+    old = before["revision_limit_days"]
+    new = 14 if old != 14 else 21
+
+    prev = ok(call(client, access, "wptc_set_revision_limit", {**a, "days": new}))
+    assert prev["confirmed"] is False and prev["preview"]["revision_limit_days"] == {"old": old, "new": new}
+    assert ok(call(client, access, "site_health", a))["wptc"]["revision_limit_days"] == old  # preview changed nothing
+
+    done = ok(call(client, access, "wptc_set_revision_limit", {**a, "days": new, "confirm": True}))
+    assert done["verify"] == {"revision_limit": True} and done["revision_limit_days"] == {"old": old, "new": new}
+    assert done["backup_id"] and "audit_target" not in done
+    assert ok(call(client, access, "site_health", a))["wptc"]["revision_limit_days"] == new
+    entry = ok(call(client, access, "audit_log", {**a, "limit": 5}))["entries"][0]
+    assert entry["ability"] == "wptc-set-revision-limit" and entry["target"] == f"wptc revision_limit {new}" and entry["backup_id"] == done["backup_id"]
+
+    rb_prev = ok(call(client, access, "option_rollback", {**a, "backup_id": done["backup_id"]}))
+    assert rb_prev["confirmed"] is False and rb_prev["preview"]["revision_limit_days"] == {"old": new, "new": old}
+    rb = ok(call(client, access, "option_rollback", {**a, "backup_id": done["backup_id"], "confirm": True}))
+    assert rb["verify"] == {"revision_limit": True} and rb["safety_backup_id"]
+    assert ok(call(client, access, "site_health", a))["wptc"]["revision_limit_days"] == old
+
+    ok(call(client, access, "plugin_deactivate", {**a, "plugin": "wp-time-capsule", "confirm": True}))
+    try:
+        assert "nicht aktiv" in err(call(client, access, "wptc_set_revision_limit", {**a, "days": new}))
+    finally:
+        ok(call(client, access, "plugin_activate", {**a, "plugin": "wp-time-capsule", "confirm": True}))
