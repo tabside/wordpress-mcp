@@ -1,5 +1,9 @@
 # Changelog
 
+## Plugin tabside-mcp 2.2.1
+
+* `plugin_update` für tabside-mcp und `plugin_list` mit `refresh=true` leeren vorher den Release-Zwischenspeicher des eigenen Updaters. Bisher meldeten sie bis zu 6 Stunden nach einem neuen Release noch "kein Update verfügbar".
+
 ## Plugin tabside-mcp 2.2.0
 
 * Neues Tool `wptc_set_revision_limit` (wie im plesk-mcp): setzt bei WP Time Capsule die Speicherdauer der Sicherungen (`revision_limit` in `{prefix}wptc_options`, 1 bis 365 Tage, Vorgabe 30), nur wenn WPTC aktiv ist. Ohne `confirm=true` Vorschau mit altem und neuem Wert, danach Kontrolle durch erneutes Auslesen. Der alte Wert wird gesichert; zurückstellen mit `option_rollback` und der zurückgegebenen `backup_id`. Nur für Administratoren (`manage_options`), Eintrag im `audit_log`.

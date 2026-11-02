@@ -321,6 +321,8 @@ final class Tabside_MCP_Admin {
 	public static function plugin_list( $input ) {
 		self::admin_includes();
 		if ( ! empty( $input['refresh'] ) ) {
+			// Sonst liefert der eigene Updater bis zu 6 Stunden alte Release-Angaben von GitHub.
+			Tabside_MCP_Updater::flush();
 			wp_update_plugins();
 		}
 		$updates = get_site_transient( 'update_plugins' );
@@ -396,6 +398,9 @@ final class Tabside_MCP_Admin {
 		$file = self::plugin_file( $input['plugin'] );
 		if ( is_wp_error( $file ) ) {
 			return $file;
+		}
+		if ( self::SELF_PLUGIN === $file ) {
+			Tabside_MCP_Updater::flush();
 		}
 		wp_update_plugins();
 		$updates = get_site_transient( 'update_plugins' );
