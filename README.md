@@ -59,7 +59,7 @@ Jedes Tool ausser `get_version`, `list_sites` und `docx_to_content` hat den Para
 | `menu_item_create`, `menu_item_update`, `menu_item_move`, `menu_item_remove` | schreiben | Menüeinträge (eigene URL, Seite/Beitrag, Kategorie); Entfernen = Papierkorb, Untereinträge rücken nach oben |
 | `menu_locations_set` | schreiben | Menü-Positionen zuweisen |
 | `menu_rollback` | schreiben | Menü oder Positionen aus Sicherung |
-| `option_get`, `option_update`, `option_rollback` | lesen / schreiben | Einstellungen aus einer festen Whitelist (Allgemein, Lesen, Diskussion, Medien, Permalinks); `option_rollback` mit `backup_id` stellt auch die WPTC-Speicherdauer zurück |
+| `option_get`, `option_update`, `option_rollback` | lesen / schreiben | Einstellungen aus einer festen Whitelist (Allgemein, Lesen, Diskussion, Medien, Permalinks); `option_rollback` mit `backup_id` stellt auch die WPTC-Speicherdauer und die von `wptc_repair` gesetzten WPTC-Pfade zurück |
 | `custom_css_get`, `custom_css_update`, `custom_css_rollback` | lesen / schreiben | Zusätzliches CSS des aktiven Themes, Vorschau mit geänderten Zeilen |
 | `widget_list`, `widget_update`, `widget_rollback` | lesen / schreiben | Klassische Widgets und Seitenleisten |
 | `redirect_list`, `redirect_create`, `redirect_update` | lesen / schreiben | Weiterleitungen, nur wenn das Plugin Redirection aktiv ist; abschalten statt löschen |
@@ -77,6 +77,9 @@ Jedes Tool ausser `get_version`, `list_sites` und `docx_to_content` hat den Para
 | `site_health` | lesen | Direkte Website-Zustand-Tests, PHP, Speicher, Cron, Debug, Objekt-Cache |
 | `cache_flush` | schreiben | Objekt-Cache, Elementor-CSS und erkannte Cache-Plugins |
 | `wptc_set_revision_limit` | schreiben | WP Time Capsule: Speicherdauer der Sicherungen in Tagen (1 bis 365), nur wenn WPTC aktiv ist; alter Wert gesichert, zurück mit `option_rollback` + `backup_id` |
+| `wptc_status` | lesen | WP Time Capsule im Detail: Konto, Verbindung zum Dienst, Zeitplan, laufende Sicherung (`hanging` = über 60 Minuten still), Warteschlange, letzte Sicherungen, Aktivitätsprotokoll; `warnings` bei ungültigem Temp-Verzeichnis (`tmp_dir_ok`) und bei letzter erfolgreicher Sicherung älter als 48 Stunden oder keiner (`last_success.stale`) |
+| `wptc_backup_start` | schreiben | Sicherung starten, hängende vorher abbrechen (aktive nur mit `abort_running=true`); ohne gültiges Temp-Verzeichnis nichts, dann zuerst `wptc_repair` |
+| `wptc_repair` | schreiben | Reparatur ohne wp-admin: Diagnose, Temp-Verzeichnis `wp-content/uploads/tCapsule/backups` mit `index.php` und Pfad `backup_db_path` über WPTC selbst anlegen, hängende Sicherung abbrechen und zurücksetzen, mit `start_backup=true` (Vorgabe) neu starten; Pfad nie vom Aufrufer; Pfad-Werte gesichert, zurück mit `option_rollback` + `backup_id` |
 | `user_list`, `user_get` | lesen | Benutzer mit Rolle, Anwendungspasswörtern (ohne Passwort) und letzter Nutzung |
 | `user_update` | schreiben | Nur Anzeigename, Vor-/Nachname, Biografie, Rolle |
 | `application_password_list` | lesen | Eigene Anwendungspasswörter (Name, erstellt, zuletzt benutzt) |

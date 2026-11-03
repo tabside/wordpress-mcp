@@ -554,3 +554,34 @@ def test_wptc_status_and_backup_start(wp):
     assert "nicht mit einem Konto" in err(call(client, access, "wptc_backup_start", {**a}))
     assert "nicht mit einem Konto" in err(call(client, access, "wptc_backup_start", {**a, "confirm": True}))
     assert ok(call(client, access, "wptc_status", a))["running"]["backup"] is False
+
+
+def test_wptc_repair(wp):
+    client, access = wp
+    a = {"site": "admin"}
+    assert "Berechtigung" in err(call(client, access, "wptc_repair", {"site": "test"}))  # editor
+    prev = ok(call(client, access, "wptc_repair", a))
+    assert prev["confirmed"] is False
+    diag = prev["preview"]["diagnosis"]
+    assert set(diag) == {"tmp_dir", "path_option", "running", "account"}
+    assert diag["tmp_dir"]["path"].endswith("/wp-content/uploads/tCapsule/backups")
+    assert diag["path_option"]["expected"].endswith("/wp-content/uploads")
+    # Testseite ohne WPTC-Konto: reparieren ja, starten nein.
+    assert "start_backup" not in prev["preview"]["actions"]
+    assert any("nicht mit einem Konto" in n for n in prev["notes"])
+
+    done = ok(call(client, access, "wptc_repair", {**a, "start_backup": False, "confirm": True}))
+    assert done["confirmed"] is True and done["errors"] == []
+    if done["actions"]:
+        assert done["backup_id"]
+        assert done["verify"]["tmp_dir"] is True and done["verify"]["path_option"] is True and done["verify"]["index_php"] is True
+        entry = ok(call(client, access, "audit_log", {**a, "limit": 5}))["entries"][0]
+        assert entry["ability"] == "wptc-repair" and entry["backup_id"] == done["backup_id"]
+        rb = ok(call(client, access, "option_rollback", {**a, "backup_id": done["backup_id"]}))
+        assert rb["confirmed"] is False and "backup_db_path" in rb["preview"]["changes"]
+
+    status = ok(call(client, access, "wptc_status", a))
+    assert status["tmp_dir_ok"] is True and status["tmp_dir"].endswith("/uploads/tCapsule/backups")
+    assert status["last_success"]["stale"] is True and any("Keine erfolgreiche Sicherung" in w for w in status["warnings"])
+    again = ok(call(client, access, "wptc_repair", {**a, "start_backup": False}))
+    assert again["preview"]["actions"] == []

@@ -1,7 +1,7 @@
 === tabside MCP ===
 Requires at least: 6.9
 Requires PHP: 7.4
-Stable tag: 2.3.0
+Stable tag: 2.4.0
 License: GPLv2 or later
 
 WordPress-Seite über das WordPress-MCP-Gateway verwalten: Inhalte, Elementor, Menüs, Einstellungen, Plugins, Themes, Benutzer.
@@ -17,7 +17,8 @@ post-update, post-duplicate, media-upload, post-trash, post-rollback, term-creat
 Elementor (wenn aktiv): elementor-info, -get, -find, -references, -template-list, -update-element, -replace-text,
 -insert-element, -move-element, -remove-element, -copy-layout, -set-conditions (Pro), -page-settings-update.
 Navigation und Einstellungen: menu-*, option-get/-update/-rollback (Whitelist), custom-css-*, widget-*, redirect-* (Redirection).
-Administration: plugin-*, theme-*, core-update-check, core-update (nur Minor), site-health, cache-flush, wptc-set-revision-limit, user-list,
+Administration: plugin-*, theme-*, core-update-check, core-update (nur Minor), site-health, cache-flush, wptc-set-revision-limit, wptc-status,
+wptc-backup-start, wptc-repair, user-list,
 user-get, user-update, application-password-list, audit-log.
 
 Schreibende Abilities ändern nur mit confirm=true, sonst Vorschau. Vorher wird gesichert (Beiträge und Elementor im
@@ -38,6 +39,12 @@ Updates kommen automatisch aus den GitHub-Releases von tabside/wordpress-mcp.
 Bei WordPress unter 6.9 zeigt das Plugin Administratoren einen Hinweis.
 
 == Changelog ==
+
+= 2.4.0 =
+* wptc-repair: repariert WP Time Capsule ohne wp-admin. Diagnose, Temp-Verzeichnis wp-content/uploads/tCapsule/backups mit index.php und Pfad backup_db_path über die WPTC-eigene Funktion (Config::choose_db_backup_path) anlegen, hängende Sicherung abbrechen und zurücksetzen, optional neu starten. Pfad nie vom Aufrufer, Sicherung der Pfad-Einstellungen (option-rollback mit backup_id), Vorschau, Protokoll, nur Administratoren.
+* Temp-Verzeichnis richtig auflösen: WPTC speichert backup_db_path relativ (z.B. /wp-content/uploads), bisher wurde das als absoluter Pfad gelesen und das Verzeichnis fälschlich als fehlend gemeldet. Gültig ist es nur noch innerhalb von wp-content/uploads.
+* wptc-status: warnings, tmp_dir_ok und tmp_dir_error; last_success mit source und stale (älter als 48 Stunden oder keine). WPTC leert last_backup_success_complete_time nach 72 Stunden ohne Sicherung, dann gilt der letzte Eintrag "Backup complete." im Aktivitätsprotokoll. Gleiches in site-health (wptc.last_success_source).
+* wptc-backup-start verweist bei fehlendem Temp-Verzeichnis auf wptc-repair.
 
 = 2.3.0 =
 * wptc-status: detaillierter Stand von WP Time Capsule (Konto, Verbindung zum Dienst, Zeitplan, laufende Sicherung mit hanging-Erkennung, Warteschlange, letzte Sicherungen, Aktivitätsprotokoll).

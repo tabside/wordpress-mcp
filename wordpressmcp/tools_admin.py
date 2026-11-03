@@ -104,7 +104,9 @@ def register_admin_tools(mcp: MCPServer, runner: ToolRunner) -> None:
         description=(
             "Detaillierter Stand von WP Time Capsule: Konto und Verbindung zum WPTC-Dienst (cron_status = letzter Verbindungstest), Backup-Ziel, "
             "Speicherdauer, Zeitplan, letzte erfolgreiche Sicherung, laufende Sicherung mit letztem Lebenszeichen (hanging = über 60 Minuten still), "
-            "Warteschlange, letzte Sicherungen und die neuesten Einträge des WPTC-Aktivitätsprotokolls (log_limit, 0 = keine). Nur für Administratoren."
+            "Warteschlange, letzte Sicherungen und die neuesten Einträge des WPTC-Aktivitätsprotokolls (log_limit, 0 = keine). warnings meldet ein fehlendes oder "
+            "ungültiges Temp-Verzeichnis (tmp_dir_ok=false, beheben mit wptc_repair) und eine letzte erfolgreiche Sicherung älter als 48 Stunden oder keine "
+            "(last_success.stale; last_success.source = option oder activity_log). Nur für Administratoren."
         ),
         annotations=READ_ONLY,
     )
@@ -115,12 +117,27 @@ def register_admin_tools(mcp: MCPServer, runner: ToolRunner) -> None:
         description=(
             "Startet bei WP Time Capsule eine Sicherung (wie 'Backup now'). Eine hängende Sicherung (letztes Lebenszeichen über 60 Minuten alt) "
             "wird vorher abgebrochen und zurückgesetzt, eine aktive nur mit abort_running=true. Nie während einer Wiederherstellung, nicht ohne verbundenes "
-            "WPTC-Konto. Danach läuft die Sicherung über den WPTC-Dienst weiter, Fortschritt mit wptc_status prüfen." + CONFIRM_DOC + ADMIN_DOC
+            "WPTC-Konto und nicht ohne gültiges Temp-Verzeichnis (dann zuerst wptc_repair). Danach läuft die Sicherung über den WPTC-Dienst weiter, Fortschritt mit wptc_status prüfen." + CONFIRM_DOC + ADMIN_DOC
         ),
         annotations=WRITE,
     )
     async def wptc_backup_start(site: str, abort_running: bool = False, confirm: bool = False) -> dict[str, Any]:
         return await runner.write(site, "wptc_backup_start", {"abort_running": abort_running, "confirm": confirm})
+
+    @mcp.tool(
+        description=(
+            "Repariert WP Time Capsule ohne wp-admin, z.B. wenn wptc_status tmp_dir_ok=false oder hanging=true meldet. Diagnose: Temp-Verzeichnis "
+            "(vorhanden, beschreibbar, Besitzer, index.php), Pfad-Einstellung backup_db_path, laufende oder hängende Sicherung, Konto. Dann mit den "
+            "WPTC-eigenen Funktionen wp-content/uploads/tCapsule/backups samt index.php anlegen (0755, Besitzer = PHP-Benutzer) und den Pfad neu setzen, "
+            "hängende Sicherung abbrechen und zurücksetzen und mit start_backup=true (Vorgabe) eine frische Sicherung starten. Der Pfad wird immer aus der "
+            "WordPress-Konfiguration abgeleitet und lässt sich nicht übergeben. Eine aktive, nicht hängende Sicherung nur mit abort_running=true, nie während "
+            "einer Wiederherstellung. Alte Pfad-Werte werden gesichert: zurück mit option_rollback und backup_id; danach wird erneut ausgelesen (verify)."
+            + CONFIRM_DOC + ADMIN_DOC
+        ),
+        annotations=WRITE,
+    )
+    async def wptc_repair(site: str, start_backup: bool = True, abort_running: bool = False, confirm: bool = False) -> dict[str, Any]:
+        return await runner.write(site, "wptc_repair", {"start_backup": start_backup, "abort_running": abort_running, "confirm": confirm})
 
     @mcp.tool(description="Benutzer mit Login, Name, E-Mail, Rolle, Registrierung, Anzahl Anwendungspasswörter und letzter Nutzung eines Anwendungspassworts.", annotations=READ_ONLY)
     async def user_list(site: str, role: str | None = None, search: str | None = None, limit: int = 50, page: int = 1) -> dict[str, Any]:

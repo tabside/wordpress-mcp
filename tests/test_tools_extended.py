@@ -42,7 +42,7 @@ def test_every_plugin_ability_has_a_tool_and_the_right_method(gateway, access):
     client, _, _ = gateway
     listed = tools(client, access)
     abilities = {name.replace("-", "_") for name in plugin_abilities()}
-    assert len(abilities) == 71
+    assert len(abilities) == 72
     assert abilities == set(listed) - GATEWAY_ONLY
     for name, tool in listed.items():
         if name in GATEWAY_ONLY:
@@ -111,6 +111,8 @@ FORWARD = [
     ("wptc_status", {}, {"log_limit": "20"}),
     ("wptc_backup_start", {}, {"abort_running": False, "confirm": False}),
     ("wptc_backup_start", {"abort_running": True, "confirm": True}, {"abort_running": True, "confirm": True}),
+    ("wptc_repair", {}, {"start_backup": True, "abort_running": False, "confirm": False}),
+    ("wptc_repair", {"start_backup": False, "abort_running": True, "confirm": True}, {"start_backup": False, "abort_running": True, "confirm": True}),
     ("application_password_list", {}, {}),
     ("audit_log", {"limit": 5}, {"limit": "5"}),
 ]
