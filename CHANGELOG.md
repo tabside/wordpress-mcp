@@ -1,5 +1,10 @@
 # Changelog
 
+## Plugin tabside-mcp 2.3.0 / Gateway 1.2.0
+
+* Neues Tool `wptc_status`: detaillierter Stand von WP Time Capsule. Konto und Verbindung zum WPTC-Dienst (`server_connected`, letzter Verbindungstest `cron_status`), Backup-Ziel, Speicherdauer (gesetzt und laut Konto zulässig), Zeitplan, letzte erfolgreiche Sicherung, laufende Sicherung mit letztem Lebenszeichen (`hanging` = über 60 Minuten still, gleiche Schwelle wie WPTC selbst), Warteschlange der aktuellen Sicherung, die letzten 5 Sicherungen und die neuesten Einträge des WPTC-Aktivitätsprotokolls (`log_limit`, Vorgabe 20). Nur lesend.
+* Neues Tool `wptc_backup_start`: startet eine Sicherung wie BACKUP_START des WPTC-Dienstes (Einstellungen zurücksetzen, manueller Start mit Verbindungstest). Eine hängende Sicherung wird vorher abgebrochen und zurückgesetzt, eine aktive nur mit `abort_running=true`; während einer Wiederherstellung oder ohne verbundenes Konto/Ziel wird nichts gestartet. Schlägt der Verbindungstest fehl, wird der halb gestartete Zustand wieder zurückgesetzt. Vorschau ohne `confirm=true`, Eintrag im `audit_log`, nur Administratoren.
+
 ## Plugin tabside-mcp 2.2.2
 
 * `plugin_update`, `theme_update` sowie `plugin_list`/`theme_list` mit `refresh=true` leeren vorher den Update-Cache von WordPress (wie "Erneut prüfen" im wp-admin). `wp_update_plugins()` fragt sonst höchstens alle 12 Stunden neu an, darum meldete `plugin_update` nach einem neuen Release "kein Update verfügbar". Behebt den Fall, den 2.2.1 nur zur Hälfte abgedeckt hat.

@@ -100,6 +100,28 @@ def register_admin_tools(mcp: MCPServer, runner: ToolRunner) -> None:
     ) -> dict[str, Any]:
         return await runner.write(site, "wptc_set_revision_limit", {"days": days, "confirm": confirm})
 
+    @mcp.tool(
+        description=(
+            "Detaillierter Stand von WP Time Capsule: Konto und Verbindung zum WPTC-Dienst (cron_status = letzter Verbindungstest), Backup-Ziel, "
+            "Speicherdauer, Zeitplan, letzte erfolgreiche Sicherung, laufende Sicherung mit letztem Lebenszeichen (hanging = über 60 Minuten still), "
+            "Warteschlange, letzte Sicherungen und die neuesten Einträge des WPTC-Aktivitätsprotokolls (log_limit, 0 = keine). Nur für Administratoren."
+        ),
+        annotations=READ_ONLY,
+    )
+    async def wptc_status(site: str, log_limit: Annotated[int, Field(ge=0, le=100)] = 20) -> dict[str, Any]:
+        return await runner.read(site, "wptc_status", {"log_limit": log_limit})
+
+    @mcp.tool(
+        description=(
+            "Startet bei WP Time Capsule eine Sicherung (wie 'Backup now'). Eine hängende Sicherung (letztes Lebenszeichen über 60 Minuten alt) "
+            "wird vorher abgebrochen und zurückgesetzt, eine aktive nur mit abort_running=true. Nie während einer Wiederherstellung, nicht ohne verbundenes "
+            "WPTC-Konto. Danach läuft die Sicherung über den WPTC-Dienst weiter, Fortschritt mit wptc_status prüfen." + CONFIRM_DOC + ADMIN_DOC
+        ),
+        annotations=WRITE,
+    )
+    async def wptc_backup_start(site: str, abort_running: bool = False, confirm: bool = False) -> dict[str, Any]:
+        return await runner.write(site, "wptc_backup_start", {"abort_running": abort_running, "confirm": confirm})
+
     @mcp.tool(description="Benutzer mit Login, Name, E-Mail, Rolle, Registrierung, Anzahl Anwendungspasswörter und letzter Nutzung eines Anwendungspassworts.", annotations=READ_ONLY)
     async def user_list(site: str, role: str | None = None, search: str | None = None, limit: int = 50, page: int = 1) -> dict[str, Any]:
         return await runner.read(site, "user_list", {"role": role, "search": search, "limit": limit, "page": page})

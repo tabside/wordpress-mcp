@@ -1,7 +1,7 @@
 === tabside MCP ===
 Requires at least: 6.9
 Requires PHP: 7.4
-Stable tag: 2.2.2
+Stable tag: 2.3.0
 License: GPLv2 or later
 
 WordPress-Seite über das WordPress-MCP-Gateway verwalten: Inhalte, Elementor, Menüs, Einstellungen, Plugins, Themes, Benutzer.
@@ -38,6 +38,10 @@ Updates kommen automatisch aus den GitHub-Releases von tabside/wordpress-mcp.
 Bei WordPress unter 6.9 zeigt das Plugin Administratoren einen Hinweis.
 
 == Changelog ==
+
+= 2.3.0 =
+* wptc-status: detaillierter Stand von WP Time Capsule (Konto, Verbindung zum Dienst, Zeitplan, laufende Sicherung mit hanging-Erkennung, Warteschlange, letzte Sicherungen, Aktivitätsprotokoll).
+* wptc-backup-start: Sicherung starten, hängende Sicherung vorher abbrechen (aktive nur mit abort_running). Vorschau, Protokoll, nur Administratoren.
 
 = 2.2.2 =
 * plugin-update, theme-update und plugin-list/theme-list mit refresh leeren den Update-Cache von WordPress, sonst fragt WordPress nur alle 12 Stunden neu an und meldet "kein Update verfügbar".

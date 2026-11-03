@@ -539,3 +539,18 @@ def test_wptc_set_revision_limit(wp):
         assert "nicht aktiv" in err(call(client, access, "wptc_set_revision_limit", {**a, "days": new}))
     finally:
         ok(call(client, access, "plugin_activate", {**a, "plugin": "wp-time-capsule", "confirm": True}))
+
+
+def test_wptc_status_and_backup_start(wp):
+    client, access = wp
+    a = {"site": "admin"}
+    assert "Berechtigung" in err(call(client, access, "wptc_status", {"site": "test"}))  # editor
+    status = ok(call(client, access, "wptc_status", {**a, "log_limit": 5}))
+    assert status["active"] is True and status["version"]
+    assert set(status) >= {"account", "repo", "revision_limit", "schedule", "last_success", "running", "queue", "recent_backups", "log"}
+    assert status["running"]["backup"] is False and status["running"]["hanging"] is False
+    assert len(status["log"]) <= 5
+    # Testseite ist mit keinem WPTC-Konto verbunden: kein Start, auch nicht in der Vorschau.
+    assert "nicht mit einem Konto" in err(call(client, access, "wptc_backup_start", {**a}))
+    assert "nicht mit einem Konto" in err(call(client, access, "wptc_backup_start", {**a, "confirm": True}))
+    assert ok(call(client, access, "wptc_status", a))["running"]["backup"] is False

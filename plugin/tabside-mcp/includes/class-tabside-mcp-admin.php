@@ -221,6 +221,35 @@ final class Tabside_MCP_Admin {
 				'permission'  => $cap( 'manage_options' ),
 				'execute'     => array( __CLASS__, 'wptc_set_revision_limit' ),
 			),
+			'wptc-status'             => array(
+				'label'       => 'WPTC-Status',
+				'description' => 'Detaillierter Stand von WP Time Capsule: Konto und Verbindung zum WPTC-Dienst, Backup-Ziel, Zeitplan, letzte erfolgreiche Sicherung, laufende Sicherung mit letztem Lebenszeichen (hanging = über 60 Minuten still), Warteschlange, letzte Sicherungen und die neuesten Einträge des WPTC-Aktivitätsprotokolls. Nur lesend.',
+				'readonly'    => true,
+				'properties'  => array(
+					'log_limit' => array(
+						'type'    => 'integer',
+						'minimum' => 0,
+						'maximum' => 100,
+						'default' => 20,
+					),
+				),
+				'permission'  => $cap( 'manage_options' ),
+				'execute'     => array( __CLASS__, 'wptc_backup_status' ),
+			),
+			'wptc-backup-start'       => array(
+				'label'       => 'WPTC-Sicherung starten',
+				'description' => 'Startet bei WP Time Capsule eine Sicherung (wie "Backup now" bzw. BACKUP_START des WPTC-Dienstes). Eine hängende Sicherung (letztes Lebenszeichen über 60 Minuten alt) wird vorher abgebrochen und zurückgesetzt; eine aktive nur mit abort_running=true. Nie während einer Wiederherstellung. Die Vorschau zeigt den aktuellen Stand und was passiert. Ohne confirm=true nur Vorschau.' . $admin_note,
+				'properties'  => array(
+					'abort_running' => array(
+						'type'        => 'boolean',
+						'default'     => false,
+						'description' => 'Auch eine nicht hängende, laufende Sicherung abbrechen und neu starten.',
+					),
+					'confirm'       => $confirm,
+				),
+				'permission'  => $cap( 'manage_options' ),
+				'execute'     => array( __CLASS__, 'wptc_backup_start' ),
+			),
 			'user-list'               => array(
 				'label'       => 'Benutzer auflisten',
 				'description' => 'Benutzer mit Login, Name, E-Mail, Rolle, Registrierung, Anzahl Anwendungspasswörter und letzter Nutzung eines Anwendungspassworts.',
@@ -968,6 +997,308 @@ final class Tabside_MCP_Admin {
 			'verify'              => array( 'revision_limit' => $now === $target ),
 			'audit_target'        => 'wptc revision_limit ' . ( null === $target ? '(entfernt)' : $target ),
 		);
+	}
+
+	/** Sekunden ohne Lebenszeichen, ab denen eine Sicherung als hängend gilt (wie wptc_reset_backup_if_long_time_no_ping). */
+	const WPTC_HANG_SECONDS = 3600;
+
+	/**
+	 * Detaillierter WPTC-Stand, nur lesend.
+	 */
+	public static function wptc_backup_status( $input ) {
+		$table = self::wptc_table();
+		if ( is_wp_error( $table ) ) {
+			return $table;
+		}
+		global $wpdb;
+		$o    = self::wptc_options( $table );
+		$last = (int) ( $o['last_backup_success_complete_time'] ?? 0 );
+		$cron = self::wptc_unserialize( $o['wptc_own_cron_status'] ?? '' );
+
+		$queue  = array();
+		$ptable = $wpdb->base_prefix . 'wptc_current_process';
+		if ( self::table_exists( $ptable ) ) {
+			foreach ( (array) $wpdb->get_results( "SELECT status, COUNT(*) AS n FROM `{$ptable}` GROUP BY status" ) as $row ) { // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$label           = array(
+					'P' => 'processed',
+					'Q' => 'queued',
+					'S' => 'skipped',
+				)[ $row->status ] ?? $row->status;
+				$queue[ $label ] = (int) $row->n;
+			}
+		}
+
+		$backups = array();
+		$btable  = $wpdb->base_prefix . 'wptc_backups';
+		if ( self::table_exists( $btable ) ) {
+			foreach ( (array) $wpdb->get_results( "SELECT backup_id, backup_name, backup_type, files_count FROM `{$btable}` ORDER BY id DESC LIMIT 5" ) as $row ) { // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$backups[] = array(
+					'started_gmt' => is_numeric( $row->backup_id ) ? gmdate( 'Y-m-d H:i:s', (int) $row->backup_id ) : null,
+					'name'        => $row->backup_name,
+					'type'        => $row->backup_type,
+					'files'       => (int) $row->files_count,
+				);
+			}
+		}
+
+		$log    = array();
+		$limit  = max( 0, min( 100, (int) ( $input['log_limit'] ?? 20 ) ) );
+		$ltable = $wpdb->base_prefix . 'wptc_activity_log';
+		if ( $limit && self::table_exists( $ltable ) ) {
+			$rows = $wpdb->get_results( $wpdb->prepare( "SELECT time, type, log_data FROM `{$ltable}` ORDER BY id DESC LIMIT %d", $limit ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			foreach ( (array) $rows as $row ) {
+				$data  = self::wptc_unserialize( $row->log_data );
+				$msg   = is_array( $data ) && isset( $data['msg'] ) && is_scalar( $data['msg'] ) ? (string) $data['msg'] : '';
+				$log[] = array(
+					'time_gmt' => is_array( $data ) && ! empty( $data['log_time'] ) ? gmdate( 'Y-m-d H:i:s', (int) $data['log_time'] ) : $row->time,
+					'type'     => $row->type,
+					'msg'      => function_exists( 'mb_substr' ) ? mb_substr( wp_strip_all_tags( $msg ), 0, 500 ) : substr( wp_strip_all_tags( $msg ), 0, 500 ),
+				);
+			}
+		}
+
+		return array(
+			'active'          => true,
+			'version'         => defined( 'WPTC_VERSION' ) ? WPTC_VERSION : null,
+			'account'         => array(
+				'email'             => $o['main_account_email'] ?? null,
+				'logged_in'         => ! empty( $o['is_user_logged_in'] ),
+				'server_connected'  => ! empty( $o['wptc_server_connected'] ),
+				'service_requested' => ( $o['wptc_service_request'] ?? '' ) === 'yes',
+				'cron_status'       => is_array( $cron ) ? $cron : null,
+			),
+			'repo'            => $o['default_repo'] ?? null,
+			'tmp_dir'         => is_wp_error( self::wptc_tmp_dir( $o ) ) ? null : self::wptc_tmp_dir( $o ),
+			'revision_limit'  => array(
+				'days'     => isset( $o['revision_limit'] ) && '' !== $o['revision_limit'] ? (int) $o['revision_limit'] : null,
+				'eligible' => isset( $o['eligible_revision_limit'] ) && '' !== $o['eligible_revision_limit'] ? (int) $o['eligible_revision_limit'] : null,
+			),
+			'schedule'        => array(
+				'slot'     => $o['backup_slot'] ?? null,
+				'time'     => $o['schedule_time_str'] ?? null,
+				'timezone' => $o['wptc_timezone'] ?? null,
+			),
+			'last_success'    => array(
+				'gmt'       => $last ? gmdate( 'Y-m-d H:i:s', $last ) : null,
+				'age_hours' => $last ? (int) floor( ( time() - $last ) / 3600 ) : null,
+			),
+			'running'         => self::wptc_running( $o ),
+			'queue'           => $queue,
+			'recent_backups'  => $backups,
+			'log'             => $log,
+		);
+	}
+
+	/**
+	 * WPTC-Sicherung starten, hängende vorher abbrechen.
+	 */
+	public static function wptc_backup_start( $input ) {
+		$table = self::wptc_table();
+		if ( is_wp_error( $table ) ) {
+			return $table;
+		}
+		foreach ( array( 'start_fresh_backup_tc_callback_wptc', 'stop_fresh_backup_tc_callback_wptc', 'reset_backup_related_settings_wptc' ) as $fn ) {
+			if ( ! function_exists( $fn ) ) {
+				return new WP_Error( 'tabside_mcp_wptc_api', sprintf( 'WPTC-Funktion %s fehlt (andere WPTC-Version?).', $fn ) );
+			}
+		}
+		$o       = self::wptc_options( $table );
+		$running = self::wptc_running( $o );
+		$abort   = ! empty( $input['abort_running'] );
+		$notes   = array();
+
+		if ( $running['restore'] ) {
+			return new WP_Error( 'tabside_mcp_wptc_restore', 'Bei WPTC läuft eine Wiederherstellung, keine Sicherung gestartet.' );
+		}
+		if ( empty( $o['main_account_email'] ) || empty( $o['default_repo'] ) ) {
+			return new WP_Error( 'tabside_mcp_wptc_setup', 'WPTC ist nicht mit einem Konto bzw. Backup-Ziel verbunden. Das geht nur im WPTC-Assistenten im wp-admin.' );
+		}
+		// Schutz vor einem WPTC-Fehler: Ist das Temp-Verzeichnis nicht gesetzt, leert WPTC beim Abbrechen
+		// (force_complete -> make_folders_empty) die ganze WordPress-Installation. Dann gar nichts tun.
+		$tmp = self::wptc_tmp_dir( $o );
+		if ( is_wp_error( $tmp ) ) {
+			return $tmp;
+		}
+		if ( $running['backup'] && ! $running['hanging'] && ! $abort ) {
+			return new WP_Error(
+				'tabside_mcp_wptc_running',
+				sprintf( 'Es läuft bereits eine Sicherung (letztes Lebenszeichen vor %s Minuten), sie hängt nicht. Neu starten nur mit abort_running=true.', null === $running['last_ping_minutes'] ? '?' : $running['last_ping_minutes'] )
+			);
+		}
+		$will_abort = $running['backup'];
+		if ( $will_abort ) {
+			$notes[] = $running['hanging'] ? 'Die laufende Sicherung hängt und wird abgebrochen und zurückgesetzt.' : 'Die laufende Sicherung wird auf Wunsch (abort_running) abgebrochen.';
+		}
+		if ( empty( $o['wptc_server_connected'] ) ) {
+			$notes[] = 'WPTC meldet keine Verbindung zum WPTC-Dienst (wptc_server_connected leer). Der Start wird versucht, die Sicherung läuft aber nur, wenn der Dienst die Seite erreicht.';
+		}
+
+		if ( empty( $input['confirm'] ) ) {
+			return Tabside_MCP_Abilities::preview_result(
+				array(
+					'running'      => $running,
+					'abort_first'  => $will_abort,
+					'last_success' => ! empty( $o['last_backup_success_complete_time'] ) ? gmdate( 'Y-m-d H:i:s', (int) $o['last_backup_success_complete_time'] ) : null,
+				),
+				$notes
+			);
+		}
+
+		$errors = array();
+		ob_start();
+		try {
+			self::wptc_bootstrap();
+			if ( $will_abort ) {
+				try {
+					stop_fresh_backup_tc_callback_wptc( null, false );
+				} catch ( Throwable $e ) {
+					$errors[] = 'Abbrechen: ' . $e->getMessage();
+				}
+			}
+			// Wie WPTC selbst bei BACKUP_START (wptc-cron-functions.php): zurücksetzen, dann manuell starten mit Verbindungstest.
+			reset_backup_related_settings_wptc();
+			if ( empty( $errors ) ) {
+				start_fresh_backup_tc_callback_wptc( 'manual', array( 'type' => 'manual' ), true, false );
+			}
+		} catch ( Throwable $e ) {
+			$errors[] = $e->getMessage();
+		}
+		$output = trim( (string) ob_get_clean() );
+
+		$after = self::wptc_options( $table );
+		$cron  = self::wptc_unserialize( $after['wptc_own_cron_status'] ?? '' );
+		$state = self::wptc_running( $after );
+		$ok    = $state['backup'] && empty( $errors );
+		if ( $ok && empty( $after['wptc_server_connected'] ) ) {
+			$ok       = false;
+			$errors[] = 'Gestartet, aber WPTC ist nicht mit dem WPTC-Dienst verbunden (wptc_server_connected leer): ohne Dienst wird die Sicherung nicht abgearbeitet. WPTC im wp-admin neu anmelden.';
+		}
+		if ( is_array( $cron ) && 'success' !== ( $cron['status'] ?? '' ) ) {
+			$ok       = false;
+			$errors[] = 'Verbindungstest zum WPTC-Dienst fehlgeschlagen' . ( ! empty( $cron['body'] ) && is_scalar( $cron['body'] ) ? ': ' . substr( (string) $cron['body'], 0, 300 ) : '.' );
+			// WPTC startet trotz fehlgeschlagenem Test weiter; ohne Dienst bliebe nur eine Leiche zurück.
+			if ( $state['backup'] ) {
+				reset_backup_related_settings_wptc();
+				$state = self::wptc_running( self::wptc_options( $table ) );
+			}
+		}
+
+		return array(
+			'confirmed'    => true,
+			'aborted'      => $will_abort,
+			'started'      => $ok,
+			'running'      => $state,
+			'cron_status'  => is_array( $cron ) ? $cron : null,
+			'errors'       => $errors,
+			'output'       => '' === $output ? null : substr( wp_strip_all_tags( $output ), 0, 500 ),
+			'hint'         => $ok ? 'Die Sicherung läuft über den WPTC-Dienst weiter. Fortschritt mit wptc_status prüfen.' : 'Nicht gestartet, siehe errors und cron_status.',
+			'audit_target' => 'wptc backup start' . ( $will_abort ? ' (abgebrochen: ' . ( $running['hanging'] ? 'hängend' : 'laufend' ) . ')' : '' ),
+		);
+	}
+
+	/**
+	 * Temp-Verzeichnis von WPTC ({backup_db_path}/tCapsule/backups), das beim Abbrechen geleert wird.
+	 *
+	 * @param array<string, string> $o Optionen.
+	 * @return string|WP_Error
+	 */
+	private static function wptc_tmp_dir( array $o ) {
+		$base = trim( (string) ( $o['backup_db_path'] ?? '' ) );
+		if ( '' === $base ) {
+			return new WP_Error( 'tabside_mcp_wptc_tmp', 'Das Temp-Verzeichnis von WPTC (backup_db_path) ist nicht gesetzt. Aus Sicherheitsgründen nichts gestartet oder abgebrochen: WPTC würde sonst beim Abbrechen Dateien der Installation löschen. WPTC im wp-admin öffnen bzw. neu einrichten.' );
+		}
+		$base = wp_normalize_path( $base );
+		if ( 0 !== strpos( $base, '/' ) && ! preg_match( '#^[a-zA-Z]:/#', $base ) ) {
+			$base = wp_normalize_path( ABSPATH . $base );
+		}
+		$dir  = untrailingslashit( $base ) . '/' . ( defined( 'WPTC_TEMP_DIR_BASENAME' ) ? WPTC_TEMP_DIR_BASENAME : 'tCapsule' ) . '/backups';
+		$root = untrailingslashit( wp_normalize_path( ABSPATH ) );
+		$real = realpath( $dir );
+		if ( false === $real || ! is_dir( $real ) || untrailingslashit( wp_normalize_path( $real ) ) === $root || untrailingslashit( wp_normalize_path( $real ) ) === untrailingslashit( wp_normalize_path( WP_CONTENT_DIR ) ) ) {
+			return new WP_Error( 'tabside_mcp_wptc_tmp', sprintf( 'Das Temp-Verzeichnis von WPTC (%s) fehlt oder ist ungültig. Aus Sicherheitsgründen nichts gestartet oder abgebrochen. WPTC im wp-admin öffnen bzw. neu einrichten.', $dir ) );
+		}
+		return $real;
+	}
+
+	/**
+	 * WPTC lädt seine Klassen nur im wp-admin und bei Anfragen des WPTC-Dienstes (wptc_load_files).
+	 * Für REST-Aufrufe dieselben Schritte ohne diese Bedingung, ohne die Admin-Hooks.
+	 */
+	private static function wptc_bootstrap() {
+		if ( defined( 'DEFAULT_REPO' ) ) {
+			return;
+		}
+		foreach ( array( 'include_primary_files_wptc', 'include_spl_files_wptc', 'store_bridge_compatibile_values_wptc' ) as $fn ) {
+			if ( function_exists( $fn ) ) {
+				$fn();
+			}
+		}
+		do_action( 'just_initialized_wptc_h', '' );
+		foreach ( array( 'wptc_set_fallback_db_search_1_14_0', 'define_default_repo_const_wptc' ) as $fn ) {
+			if ( function_exists( $fn ) ) {
+				$fn();
+			}
+		}
+	}
+
+	/**
+	 * Laufzustand aus den WPTC-Optionen.
+	 *
+	 * @param array<string, string> $o Optionen.
+	 */
+	private static function wptc_running( array $o ) {
+		$backup  = ! empty( $o['in_progress'] ) || ! empty( $o['is_running'] ) || ! empty( $o['wptc_main_cycle_running'] ) || ! empty( $o['auto_backup_running'] );
+		$restore = ! empty( $o['in_progress_restore'] ) || ! empty( $o['is_bridge_process'] ) || ! empty( $o['is_running_restore'] ) || ( $o['wptc_update_progress'] ?? '' ) === 'start';
+		$ping    = (int) ( $o['recent_backup_ping'] ?? 0 );
+		$age     = $ping ? time() - $ping : null;
+		return array(
+			'backup'            => $backup,
+			'restore'           => $restore,
+			'current_action'    => ( $o['backup_current_action'] ?? '' ) ?: null,
+			'last_ping_gmt'     => $ping ? gmdate( 'Y-m-d H:i:s', $ping ) : null,
+			'last_ping_minutes' => null === $age ? null : (int) floor( $age / 60 ),
+			'hanging'           => $backup && ( null === $age || $age > self::WPTC_HANG_SECONDS ),
+		);
+	}
+
+	/**
+	 * Die für Status und Start nötigen WPTC-Optionen.
+	 *
+	 * @return array<string, string>
+	 */
+	private static function wptc_options( $table ) {
+		global $wpdb;
+		$names = array(
+			'main_account_email', 'is_user_logged_in', 'wptc_server_connected', 'wptc_service_request', 'wptc_own_cron_status',
+			'default_repo', 'revision_limit', 'eligible_revision_limit', 'backup_slot', 'schedule_time_str', 'wptc_timezone',
+			'last_backup_success_complete_time', 'in_progress', 'is_running', 'wptc_main_cycle_running', 'auto_backup_running',
+			'in_progress_restore', 'is_bridge_process', 'is_running_restore', 'wptc_update_progress', 'recent_backup_ping',
+			'backup_current_action', 'backup_db_path',
+		);
+		$in    = implode( ',', array_fill( 0, count( $names ), '%s' ) );
+		$rows  = $wpdb->get_results( $wpdb->prepare( "SELECT name, value FROM `{$table}` WHERE name IN ({$in})", $names ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$out   = array();
+		foreach ( (array) $rows as $row ) {
+			$out[ $row->name ] = (string) $row->value;
+		}
+		return $out;
+	}
+
+	/**
+	 * Serialisierte WPTC-Werte ohne Objekte lesen.
+	 *
+	 * @return mixed
+	 */
+	private static function wptc_unserialize( $value ) {
+		if ( ! is_string( $value ) || '' === $value || ! is_serialized( $value ) ) {
+			return null;
+		}
+		return @unserialize( $value, array( 'allowed_classes' => false ) ); // phpcs:ignore
+	}
+
+	private static function table_exists( $table ) {
+		global $wpdb;
+		return $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $table ) ) ) === $table;
 	}
 
 	/**

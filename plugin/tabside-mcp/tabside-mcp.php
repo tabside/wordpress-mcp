@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       tabside MCP
  * Description:       WordPress-Seite über das WordPress-MCP-Gateway verwalten: Inhalte aller Beitragstypen, Elementor, Menüs, Einstellungen, Plugins, Themes, Benutzer (Abilities API von WordPress 6.9+). Nur mit Anwendungspasswort.
- * Version:           2.2.2
+ * Version:           2.3.0
  * Update URI:        https://github.com/tabside/wordpress-mcp
  * Requires PHP:      7.4
  * Author:            tabside
@@ -15,7 +15,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TABSIDE_MCP_VERSION', '2.2.2' );
+define( 'TABSIDE_MCP_VERSION', '2.3.0' );
 // Wird beim Bau des ZIP-Release durch den Commit-Hash ersetzt (.github/workflows/plugin-release.yml).
 define( 'TABSIDE_MCP_COMMIT', 'dev' );
 define( 'TABSIDE_MCP_MIN_WP', '6.9' );

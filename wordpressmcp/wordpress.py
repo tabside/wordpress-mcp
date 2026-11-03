@@ -29,7 +29,7 @@ READ_ONLY = {
     "get_version", "post_type_list", "post_list", "post_get", "category_list", "tag_list", "term_list", "media_list",
     "elementor_info", "elementor_get", "elementor_find", "elementor_references", "elementor_template_list",
     "menu_list", "menu_get", "option_get", "custom_css_get", "widget_list", "redirect_list",
-    "plugin_list", "theme_list", "core_update_check", "site_health", "user_list", "user_get", "application_password_list", "audit_log",
+    "plugin_list", "theme_list", "core_update_check", "site_health", "wptc_status", "user_list", "user_get", "application_password_list", "audit_log",
 }
 LOGIN_ERRORS = {"incorrect_password", "invalid_username", "invalid_email", "application_passwords_disabled", "rest_not_logged_in"}
 
