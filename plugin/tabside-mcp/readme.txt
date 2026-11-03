@@ -1,7 +1,7 @@
 === tabside MCP ===
 Requires at least: 6.9
 Requires PHP: 7.4
-Stable tag: 2.4.0
+Stable tag: 2.4.1
 License: GPLv2 or later
 
 WordPress-Seite über das WordPress-MCP-Gateway verwalten: Inhalte, Elementor, Menüs, Einstellungen, Plugins, Themes, Benutzer.
@@ -39,6 +39,9 @@ Updates kommen automatisch aus den GitHub-Releases von tabside/wordpress-mcp.
 Bei WordPress unter 6.9 zeigt das Plugin Administratoren einen Hinweis.
 
 == Changelog ==
+
+= 2.4.1 =
+* wptc-status/site-health: last_success aus dem Aktivitätsprotokoll nur noch bei exakt "Backup complete.", nicht mehr auch bei "SQL backup complete." (LIKE ohne Gross-/Kleinschreibung). Vorschau von wptc-backup-start mit demselben Wert.
 
 = 2.4.0 =
 * wptc-repair: repariert WP Time Capsule ohne wp-admin. Diagnose, Temp-Verzeichnis wp-content/uploads/tCapsule/backups mit index.php und Pfad backup_db_path über die WPTC-eigene Funktion (Config::choose_db_backup_path) anlegen, hängende Sicherung abbrechen und zurücksetzen, optional neu starten. Pfad nie vom Aufrufer, Sicherung der Pfad-Einstellungen (option-rollback mit backup_id), Vorschau, Protokoll, nur Administratoren.

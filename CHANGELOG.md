@@ -1,5 +1,9 @@
 # Changelog
 
+## Plugin tabside-mcp 2.4.1
+
+* `wptc_status` und `site_health`: `last_success` aus dem Aktivitätsprotokoll zählt nur noch die Meldung exakt "Backup complete.". `LIKE` vergleicht in MySQL ohne Gross-/Kleinschreibung und traf auch "SQL backup complete.", so erschien eine laufende Sicherung schon nach dem Datenbankteil als erfolgreich. Die Vorschau von `wptc_backup_start` zeigt denselben Wert.
+
 ## Plugin tabside-mcp 2.4.0 / Gateway 1.3.0
 
 * Neues Tool `wptc_repair`: repariert WP Time Capsule ohne Handarbeit im wp-admin. Diagnose (Temp-Verzeichnis vorhanden, beschreibbar, Besitzer, `index.php`; Pfad-Einstellung `backup_db_path`; laufende oder hängende Sicherung; Konto), dann über die WPTC-eigene Funktion `Config::choose_db_backup_path()` das Verzeichnis `wp-content/uploads/tCapsule/backups` anlegen (0755, über `WP_Filesystem_Direct`, Besitzer = PHP-Benutzer) und `backup_db_path` samt den übrigen Pfad-Flags setzen, `index.php` wie `Config::create_silence_file()` ablegen (eine `.htaccess` legt WPTC dort nicht an), hängende Sicherung abbrechen und zurücksetzen, mit `start_backup=true` (Vorgabe) neu starten. Der Pfad kommt immer aus `WP_CONTENT_DIR`, nie vom Aufrufer; symbolische Links im Temp-Pfad werden abgelehnt. Eine aktive, nicht hängende Sicherung nur mit `abort_running=true`, nie während einer Wiederherstellung. Die alten Pfad-Werte werden gesichert, `option_rollback` mit `backup_id` stellt sie zurück. Vorschau ohne `confirm=true`, `verify` nach dem Ausführen, Eintrag im `audit_log`, nur Administratoren.

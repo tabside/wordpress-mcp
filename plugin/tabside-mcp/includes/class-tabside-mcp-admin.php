@@ -1172,7 +1172,7 @@ final class Tabside_MCP_Admin {
 				array(
 					'running'      => $running,
 					'abort_first'  => $will_abort,
-					'last_success' => ! empty( $o['last_backup_success_complete_time'] ) ? gmdate( 'Y-m-d H:i:s', (int) $o['last_backup_success_complete_time'] ) : null,
+					'last_success' => self::wptc_last_success( $o['last_backup_success_complete_time'] ?? '' )['gmt'],
 				),
 				$notes
 			);
@@ -1258,14 +1258,20 @@ final class Tabside_MCP_Admin {
 		}
 		$ltable = $wpdb->base_prefix . 'wptc_activity_log';
 		if ( self::table_exists( $ltable ) ) {
-			$row = $wpdb->get_row( "SELECT time, log_data FROM `{$ltable}` WHERE type = 'backups' AND log_data LIKE '%Backup complete.%' ORDER BY id DESC LIMIT 1" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-			if ( $row ) {
+			// LIKE vergleicht in MySQL ohne Gross-/Kleinschreibung und trifft auch "SQL backup complete.",
+			// darum nur vorfiltern und die Meldung danach exakt prüfen.
+			$rows = $wpdb->get_results( "SELECT log_data FROM `{$ltable}` WHERE type = 'backups' AND log_data LIKE '%ackup complete.%' ORDER BY id DESC LIMIT 50" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			foreach ( (array) $rows as $row ) {
 				$data = self::wptc_unserialize( $row->log_data );
-				$log  = is_array( $data ) && ! empty( $data['log_time'] ) ? (int) $data['log_time'] : 0;
+				if ( ! is_array( $data ) || 'Backup complete.' !== ( $data['msg'] ?? '' ) ) {
+					continue;
+				}
+				$log = ! empty( $data['log_time'] ) ? (int) $data['log_time'] : 0;
 				if ( $log > $time && $log <= time() ) {
 					$time   = $log;
 					$source = 'activity_log';
 				}
+				break;
 			}
 		}
 		return array(
