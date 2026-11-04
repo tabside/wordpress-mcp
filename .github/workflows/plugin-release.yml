@@ -13,6 +13,9 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 jobs:
   zip:
     if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
@@ -22,7 +25,7 @@ jobs:
     env:
       SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ env.SHA }}
 
@@ -51,14 +54,14 @@ jobs:
           find build/tabside-mcp -name '*.php' -print0 | xargs -0 -n1 php -l
           cd build && zip -qr "tabside-mcp-${{ steps.version.outputs.version }}.zip" tabside-mcp
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: tabside-mcp-${{ steps.version.outputs.version }}
           path: build/tabside-mcp-${{ steps.version.outputs.version }}.zip
 
       - name: GitHub-Release anlegen
         if: steps.version.outputs.release == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: plugin-v${{ steps.version.outputs.version }}
           target_commitish: ${{ env.SHA }}
