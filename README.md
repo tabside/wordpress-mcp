@@ -50,6 +50,7 @@ Jedes Tool ausser `get_version`, `list_sites` und `docx_to_content` hat den Para
 | `elementor_copy_layout` | schreiben | Aufbau von Seite A in Seite B übernehmen, mit `replace_popup_ids` / `replace_template_ids` |
 | `elementor_set_conditions` | schreiben | Anzeigebedingungen, bei Popups Auslöser und erweiterte Regeln (nur Elementor Pro) |
 | `elementor_page_settings_update` | schreiben | Elementor-Seiteneinstellungen (`_elementor_page_settings`) |
+| `elementor_template_create` | schreiben | Neue Elementor-Vorlage mit Vorlagentyp (z.B. Loop-Item, Single, Archiv), optional mit Aufbau, Seiteneinstellungen und Anzeigebedingungen |
 
 **Navigation, Einstellungen, Erscheinungsbild**
 

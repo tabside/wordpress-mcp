@@ -7,7 +7,7 @@ register the abilities and the call ends with "Elementor ist ... nicht aktiv"
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from mcp.server.mcpserver import MCPServer
 from pydantic import Field
@@ -186,3 +186,28 @@ def register_elementor_tools(mcp: MCPServer, runner: ToolRunner) -> None:
     async def elementor_page_settings_update(site: str, post_id: int, settings: Settings, confirm: bool = False) -> dict[str, Any]:
         return await write(site, "elementor_page_settings_update", {"post_id": post_id, "settings": settings, "confirm": confirm})
 
+
+    @mcp.tool(
+        description=(
+            "Legt eine neue Elementor-Vorlage mit Vorlagentyp an (template_type z.B. loop-item, single-post, archive, section, container, header, footer, popup; "
+            "ein unbekannter Typ liefert die Liste der möglichen). Optional gleich mit Aufbau (elements, IDs werden neu vergeben), Seiteneinstellungen "
+            "(page_settings, z.B. Quelle eines Loop-Items) und Anzeigebedingungen (conditions, nur Elementor Pro). post_create legt elementor_library ohne Typ an, "
+            "dafür dieses Tool verwenden." + CONFIRM_DOC
+        ),
+        annotations=WRITE,
+    )
+    async def elementor_template_create(
+        site: str,
+        title: str,
+        template_type: str,
+        status: Literal["draft", "publish", "private"] = "publish",
+        elements: Annotated[list[dict[str, Any]] | None, Field(description="Elementor-Aufbau der obersten Ebene (Container/Sections mit elements).")] = None,
+        page_settings: Annotated[dict[str, Any] | None, Field(description="Seiteneinstellungen der Vorlage.")] = None,
+        conditions: list[str] | None = None,
+        confirm: bool = False,
+    ) -> dict[str, Any]:
+        args = {
+            "title": title, "template_type": template_type, "status": status, "elements": elements,
+            "page_settings": page_settings, "conditions": conditions, "confirm": confirm,
+        }
+        return await write(site, "elementor_template_create", args)

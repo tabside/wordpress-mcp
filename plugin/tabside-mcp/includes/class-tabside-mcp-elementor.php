@@ -324,6 +324,45 @@ final class Tabside_MCP_Elementor {
 				'permission'  => $can_edit,
 				'execute'     => array( __CLASS__, 'page_settings_update' ),
 			),
+			'elementor-template-create'      => array(
+				'label'       => 'Elementor-Vorlage anlegen',
+				'description' => 'Legt eine neue Elementor-Vorlage mit Vorlagentyp an (z.B. loop-item, single-post, archive, section, container, header, footer, popup), optional gleich mit Aufbau (elements), Seiteneinstellungen und Anzeigebedingungen (nur Elementor Pro). Ohne confirm=true nur Vorschau.',
+				'flush'       => 'site',
+				'properties'  => array(
+					'title'         => array(
+						'type'        => 'string',
+						'description' => 'Titel der Vorlage.',
+					),
+					'template_type' => array(
+						'type'        => 'string',
+						'description' => 'Vorlagentyp, wie Elementor ihn kennt (Fehlermeldung listet die möglichen).',
+					),
+					'status'        => array(
+						'type'        => 'string',
+						'enum'        => array( 'draft', 'publish', 'private' ),
+						'default'     => 'publish',
+					),
+					'elements'      => array(
+						'type'        => 'array',
+						'items'       => array(
+							'type'                 => 'object',
+							'additionalProperties' => true,
+						),
+						'description' => 'Elementor-Aufbau (oberste Ebene), IDs werden neu vergeben.',
+					),
+					'page_settings' => $settings + array( 'description' => 'Seiteneinstellungen der Vorlage, z.B. bei loop-item {"source": "post_type"}.' ),
+					'conditions'    => array(
+						'type'  => 'array',
+						'items' => array( 'type' => 'string' ),
+					),
+					'confirm'       => $confirm,
+				),
+				'required'    => array( 'title', 'template_type' ),
+				'permission'  => static function () {
+					return Tabside_MCP_Plugin::check_user( 'edit_posts' );
+				},
+				'execute'     => array( __CLASS__, 'template_create' ),
+			),
 		);
 	}
 
@@ -987,6 +1026,128 @@ final class Tabside_MCP_Elementor {
 			'verify'        => array( 'page_settings' => self::page_settings( $post->ID ) === $new ),
 			'page_settings' => self::page_settings( $post->ID ),
 			'post'          => Tabside_MCP_Abilities::summary( get_post( $post->ID ) ),
+		);
+	}
+
+	/**
+	 * Vorlagentypen, die sich als Bibliotheks-Vorlage anlegen lassen.
+	 *
+	 * @return string[]
+	 */
+	public static function creatable_types() {
+		$types = array();
+		foreach ( \Elementor\Plugin::$instance->documents->get_document_types() as $name => $class ) {
+			if ( in_array( $name, array( 'kit', 'wp-post', 'wp-page', 'not-supported', 'cloud-template-preview' ), true ) ) {
+				continue;
+			}
+			if ( is_subclass_of( $class, 'Elementor\Modules\Library\Documents\Library_Document' ) || is_subclass_of( $class, 'ElementorPro\Modules\ThemeBuilder\Documents\Theme_Document' ) || 'loop-item' === $name ) {
+				$types[] = (string) $name;
+			}
+		}
+		sort( $types );
+		return $types;
+	}
+
+	public static function template_create( $input ) {
+		$title = trim( (string) ( $input['title'] ?? '' ) );
+		$type  = (string) ( $input['template_type'] ?? '' );
+		if ( '' === $title ) {
+			return new WP_Error( 'tabside_mcp_title', 'title darf nicht leer sein.' );
+		}
+		$types = self::creatable_types();
+		if ( ! in_array( $type, $types, true ) ) {
+			return new WP_Error( 'tabside_mcp_template_type', sprintf( 'Vorlagentyp "%s" gibt es hier nicht. Möglich: %s.', $type, implode( ', ', $types ) ) );
+		}
+		$status = $input['status'] ?? 'publish';
+		if ( ! in_array( $status, array( 'draft', 'publish', 'private' ), true ) ) {
+			return new WP_Error( 'tabside_mcp_invalid_status', 'status: draft, publish oder private.' );
+		}
+		$conditions = isset( $input['conditions'] ) ? array_values( array_map( 'strval', (array) $input['conditions'] ) ) : array();
+		if ( $conditions ) {
+			if ( ! self::pro_active() ) {
+				return new WP_Error( 'tabside_mcp_conditions', 'Anzeigebedingungen setzen braucht Elementor Pro.' );
+			}
+			if ( ! in_array( $type, self::CONDITION_TYPES, true ) ) {
+				return new WP_Error( 'tabside_mcp_conditions', sprintf( 'Vorlagentyp %s hat keine Anzeigebedingungen.', $type ) );
+			}
+			foreach ( $conditions as $condition ) {
+				if ( ! preg_match( '#^(include|exclude)/[a-z0-9_\-]+(/[a-z0-9_\-]+)*$#i', $condition ) ) {
+					return new WP_Error( 'tabside_mcp_conditions', sprintf( 'Bedingung "%s" ungültig. Format: include/general, include/singular/page/12, exclude/... .', $condition ) );
+				}
+			}
+		}
+		$tree = array();
+		if ( ! empty( $input['elements'] ) ) {
+			foreach ( array_values( (array) $input['elements'] ) as $element ) {
+				$element = self::normalize_element( (array) $element );
+				if ( is_wp_error( $element ) ) {
+					return $element;
+				}
+				$tree[] = $element;
+			}
+			$tree   = self::regenerate_ids( $tree );
+			$errors = self::validate( $tree );
+			if ( $errors ) {
+				return new WP_Error( 'tabside_mcp_elementor_invalid', 'Elementor-Daten ungültig, nichts angelegt: ' . implode( ' ', $errors ), array( 'status' => 400 ) );
+			}
+		}
+		$settings = isset( $input['page_settings'] ) ? (array) $input['page_settings'] : array();
+		foreach ( array_keys( $settings ) as $key ) {
+			if ( in_array( $key, self::POST_FIELD_SETTINGS, true ) ) {
+				return new WP_Error( 'tabside_mcp_page_setting', sprintf( '%s gehört nicht in page_settings.', $key ) );
+			}
+		}
+		if ( empty( $input['confirm'] ) ) {
+			return Tabside_MCP_Abilities::preview_result(
+				array(
+					'title'         => $title,
+					'template_type' => $type,
+					'status'        => $status,
+					'elements'      => self::count_elements( $tree ),
+					'page_settings' => array_keys( $settings ),
+					'conditions'    => $conditions,
+				),
+				array()
+			);
+		}
+		$document = \Elementor\Plugin::$instance->documents->create(
+			$type,
+			array(
+				'post_title'  => $title,
+				'post_status' => $status,
+			)
+		);
+		if ( is_wp_error( $document ) ) {
+			return $document;
+		}
+		if ( ! $document ) {
+			return new WP_Error( 'tabside_mcp_template_create', 'Elementor hat die Vorlage nicht angelegt.' );
+		}
+		$post_id = (int) $document->get_main_id();
+		if ( $tree ) {
+			$document = \Elementor\Plugin::$instance->documents->get( $post_id, false );
+			if ( ! $document || ! $document->save( array( 'elements' => $tree ) ) ) {
+				update_post_meta( $post_id, self::DATA_KEY, wp_slash( wp_json_encode( $tree ) ) );
+			}
+		}
+		if ( $settings ) {
+			update_post_meta( $post_id, self::SETTINGS_KEY, wp_slash( array_merge( self::page_settings( $post_id ), $settings ) ) );
+		}
+		if ( $conditions ) {
+			self::save_conditions( $post_id, $conditions );
+		}
+		$stored = json_decode( self::raw_data( $post_id ), true );
+		$verify = array(
+			'template_type' => (string) get_post_meta( $post_id, '_elementor_template_type', true ) === $type,
+			'elements'      => is_array( $stored ) ? self::count_elements( $stored ) : 0,
+			'equal'         => ! $tree || ( is_array( $stored ) && self::normalize( $stored ) === self::normalize( $tree ) ),
+			'conditions'    => self::conditions( $post_id ) === $conditions,
+		);
+		return array(
+			'confirmed' => true,
+			'verify'    => $verify,
+			'css'       => self::rebuild_css( $post_id ),
+			'post'      => Tabside_MCP_Abilities::summary( get_post( $post_id ) ),
 		);
 	}
 

@@ -367,6 +367,17 @@ def test_elementor_element_operations(wp):
     assert ps["verify"]["page_settings"] is True and "hide_title" not in ps["page_settings"]
     assert "Pro" in err(call(client, access, "elementor_set_conditions", {"site": "test", "post_id": ids["popup1"], "conditions": ["include/general"]}))
 
+    # Neue Vorlage mit Typ und Aufbau; ohne Pro keine Bedingungen, unbekannter Typ listet die möglichen.
+    element = {"elType": "container", "elements": [{"elType": "widget", "widgetType": "heading", "settings": {"title": "Vorlage"}}]}
+    prev = ok(call(client, access, "elementor_template_create", {"site": "test", "title": "Abschnitt", "template_type": "section", "elements": [element]}))
+    assert prev["confirmed"] is False
+    made = ok(call(client, access, "elementor_template_create", {"site": "test", "title": "Abschnitt", "template_type": "section", "elements": [element], "confirm": True}))
+    assert made["verify"]["template_type"] is True and made["verify"]["equal"] is True and made["verify"]["elements"] == 2
+    listed = ok(call(client, access, "elementor_template_list", {"site": "test", "template_type": "section"}))["templates"]
+    assert made["post"]["id"] in [t["id"] for t in listed]
+    assert "Möglich:" in err(call(client, access, "elementor_template_create", {"site": "test", "title": "x", "template_type": "gibtsnicht"}))
+    assert "Pro" in err(call(client, access, "elementor_template_create", {"site": "test", "title": "x", "template_type": "section", "conditions": ["include/general"]}))
+
     # Booleans of read-only tools travel as query strings ("false") and must still count as false.
     summary = ok(call(client, access, "elementor_get", {"site": "test", "post_id": ids["page"], "full": False}))["elements"]
     assert "settings" not in summary[0] and "content" in summary[0]["elements"][0]

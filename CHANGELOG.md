@@ -1,5 +1,9 @@
 # Changelog
 
+## Plugin tabside-mcp 2.5.0 / Gateway 1.4.0
+
+* Neues Tool `elementor_template_create`: legt eine Elementor-Vorlage mit Vorlagentyp an (`template_type`, z.B. `loop-item`, `single-post`, `archive`, `section`, `container`, `header`, `footer`, `popup`). `post_create` mit `type=elementor_library` legte bisher nur einen Bibliotheks-Eintrag ohne `_elementor_template_type` an, Theme-Builder- und Loop-Vorlagen liessen sich so nicht erstellen. Angelegt wird über `documents->create()` von Elementor (Typ-Meta, Bibliotheks-Taxonomie, Standard-Einstellungen wie im wp-admin). Optional gleich mit Aufbau (`elements`, IDs werden neu vergeben und wie bei `elementor_insert_element` geprüft), Seiteneinstellungen (`page_settings`) und Anzeigebedingungen (`conditions`, nur Elementor Pro und nur bei Theme-Vorlagen und Popups). Ein unbekannter Typ liefert die Liste der auf der Seite möglichen Typen. Vorschau ohne `confirm=true`, danach `verify` und CSS-Neuaufbau, Eintrag im `audit_log`.
+
 ## Plugin tabside-mcp 2.4.1
 
 * `wptc_status` und `site_health`: `last_success` aus dem Aktivitätsprotokoll zählt nur noch die Meldung exakt "Backup complete.". `LIKE` vergleicht in MySQL ohne Gross-/Kleinschreibung und traf auch "SQL backup complete.", so erschien eine laufende Sicherung schon nach dem Datenbankteil als erfolgreich. Die Vorschau von `wptc_backup_start` zeigt denselben Wert.

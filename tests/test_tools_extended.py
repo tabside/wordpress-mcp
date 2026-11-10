@@ -42,7 +42,7 @@ def test_every_plugin_ability_has_a_tool_and_the_right_method(gateway, access):
     client, _, _ = gateway
     listed = tools(client, access)
     abilities = {name.replace("-", "_") for name in plugin_abilities()}
-    assert len(abilities) == 72
+    assert len(abilities) == 73
     assert abilities == set(listed) - GATEWAY_ONLY
     for name, tool in listed.items():
         if name in GATEWAY_ONLY:
@@ -89,6 +89,8 @@ FORWARD = [
     ("elementor_copy_layout", {"source_post_id": 8, "target_post_id": 9, "replace_popup_ids": {"5": 10}},
      {"source_post_id": 8, "target_post_id": 9, "replace_popup_ids": {"5": 10}, "copy_page_settings": True}),
     ("elementor_set_conditions", {"post_id": 5, "conditions": ["include/general"]}, {"post_id": 5, "conditions": ["include/general"]}),
+    ("elementor_template_create", {"title": "Kachel", "template_type": "loop-item", "page_settings": {"source": "projekt"}},
+     {"title": "Kachel", "template_type": "loop-item", "status": "publish", "page_settings": {"source": "projekt"}, "confirm": False}),
     ("menu_get", {"menu_id": 3}, {"menu_id": "3"}),
     ("menu_item_create", {"menu_id": 3, "type": "custom", "url": "https://kunde.example/", "title": "X"},
      {"menu_id": 3, "type": "custom", "url": "https://kunde.example/", "title": "X"}),
