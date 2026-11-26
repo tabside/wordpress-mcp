@@ -608,7 +608,7 @@ def test_login_link(wp):
     assert prev["confirmed"] is False and prev["preview"]["user"] == "claude-mcp" and "url" not in prev
 
     done = ok(call(client, access, "login_link_create", {**a, "ttl_minutes": 5, "redirect": "edit.php?post_type=page", "confirm": True}))
-    assert done["confirmed"] is True and done["user"] == "claude-mcp" and done["ttl_minutes"] == 5 and "audit_target" not in done
+    assert done["confirmed"] is True and done["user"] == "claude-mcp" and done["ttl_minutes"] == 5 and done["handler"] == "plugin" and "audit_target" not in done
     url = done["url"]
     token_value = re.search(r"token=([A-Za-z0-9_-]+)", url).group(1)
     assert len(token_value) >= 43

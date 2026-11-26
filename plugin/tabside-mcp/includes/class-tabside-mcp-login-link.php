@@ -13,10 +13,18 @@
  *   define( 'TABSIDE_MCP_LOGIN_LINKS', false ) oder Filter tabside_mcp_login_links_enabled.
  * - Erzeugen und Einlösen stehen im audit-log.
  *
+ * Ohne aktives Plugin (plesk-mcp: Ausführung per WP-CLI) gibt es niemanden, der den Link einlöst. Dann legt
+ * create() das Must-Use-Plugin wp-content/mu-plugins/tabside-mcp-login-link.php an (Quelltext über den Filter
+ * tabside_mcp_login_link_mu_source, nur plesk-mcp liefert ihn). Es enthält nur diese Klasse und löscht sich
+ * selbst, sobald kein offener Link mehr da ist.
+ *
  * @package tabside-mcp
  */
 
 defined( 'ABSPATH' ) || exit;
+
+// Bedingt deklariert: das MU-Plugin von plesk-mcp enthält dieselbe Klasse und wird vor den Plugins geladen.
+if ( ! class_exists( 'Tabside_MCP_Login_Link', false ) ) :
 
 final class Tabside_MCP_Login_Link {
 
@@ -25,9 +33,64 @@ final class Tabside_MCP_Login_Link {
 	const DEFAULT_TTL = 10;
 	const MAX_TTL     = 30;
 	const MAX_OPEN    = 3;
+	const MU_FILE     = 'tabside-mcp-login-link.php';
 
 	public static function boot() {
-		add_action( 'login_form_' . self::ACTION, array( __CLASS__, 'handle' ) );
+		if ( ! has_action( 'login_form_' . self::ACTION, array( __CLASS__, 'handle' ) ) ) {
+			add_action( 'login_form_' . self::ACTION, array( __CLASS__, 'handle' ) );
+		}
+	}
+
+	/**
+	 * Start als Must-Use-Plugin (von plesk-mcp angelegt): Link einlösen, und ohne offene Links sich selbst löschen.
+	 *
+	 * @param string $file Pfad der MU-Datei.
+	 */
+	public static function boot_mu( $file ) {
+		self::boot();
+		add_action(
+			'init',
+			static function () use ( $file ) {
+				$links = self::prune( self::all() );
+				if ( empty( $links ) ) {
+					delete_option( self::OPTION );
+					if ( is_file( $file ) && basename( $file ) === self::MU_FILE ) {
+						@unlink( $file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+					}
+				}
+			},
+			99
+		);
+	}
+
+	/**
+	 * Gibt es auf der Seite jemanden, der den Link einlöst? Sonst das MU-Plugin anlegen (nur plesk-mcp).
+	 *
+	 * @return string|WP_Error plugin | mu-plugin | mu-plugin-created
+	 */
+	private static function ensure_handler() {
+		if ( ! function_exists( 'is_plugin_active' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		}
+		if ( is_plugin_active( 'tabside-mcp/tabside-mcp.php' ) || ( is_multisite() && is_plugin_active_for_network( 'tabside-mcp/tabside-mcp.php' ) ) ) {
+			return 'plugin';
+		}
+		$file = trailingslashit( WPMU_PLUGIN_DIR ) . self::MU_FILE;
+		if ( is_file( $file ) ) {
+			return 'mu-plugin';
+		}
+		$source = (string) apply_filters( 'tabside_mcp_login_link_mu_source', '' );
+		if ( '' === $source || 0 !== strpos( $source, '<?php' ) ) {
+			return new WP_Error( 'tabside_mcp_login_link_no_handler', 'Das Plugin tabside-mcp ist auf dieser Seite nicht aktiv, der Anmeldelink könnte nicht eingelöst werden.', array( 'status' => 409 ) );
+		}
+		if ( ! is_dir( WPMU_PLUGIN_DIR ) && ! wp_mkdir_p( WPMU_PLUGIN_DIR ) ) {
+			return new WP_Error( 'tabside_mcp_login_link_mu', 'Ordner wp-content/mu-plugins konnte nicht angelegt werden.', array( 'status' => 500 ) );
+		}
+		if ( false === file_put_contents( $file, $source, LOCK_EX ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+			return new WP_Error( 'tabside_mcp_login_link_mu', 'Must-Use-Plugin für den Anmeldelink konnte nicht geschrieben werden.', array( 'status' => 500 ) );
+		}
+		@chmod( $file, 0644 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		return 'mu-plugin-created';
 	}
 
 	public static function enabled() {
@@ -86,6 +149,11 @@ final class Tabside_MCP_Login_Link {
 			return Tabside_MCP_Abilities::preview_result( $preview, array( 'Der Link meldet als dieser Benutzer an und ist nur einmal gültig.' ) );
 		}
 
+		$handler = self::ensure_handler();
+		if ( is_wp_error( $handler ) ) {
+			return $handler;
+		}
+
 		$token   = rtrim( strtr( base64_encode( random_bytes( 32 ) ), '+/', '-_' ), '=' );
 		$expires = time() + $ttl * MINUTE_IN_SECONDS;
 		$links   = self::prune( self::all() );
@@ -123,6 +191,7 @@ final class Tabside_MCP_Login_Link {
 			'expires_gmt'     => gmdate( 'Y-m-d H:i:s', $expires ),
 			'ttl_minutes'     => $ttl,
 			'redirect'        => admin_url( $redirect ),
+			'handler'         => $handler,
 			'note'            => 'Nur einmal gültig. Nicht weitergeben oder speichern.',
 			'audit_target'    => 'user ' . $user->user_login . ' ttl ' . $ttl,
 		);
@@ -164,19 +233,48 @@ final class Tabside_MCP_Login_Link {
 		unset( $links[ $hash ] );
 		self::save( $links );
 
-		$allowed = Tabside_MCP_Plugin::allowed_login();
+		$allowed = class_exists( 'Tabside_MCP_Plugin', false ) ? Tabside_MCP_Plugin::allowed_login() : '';
 		if ( ! $user || ( '' !== $allowed && strtolower( $user->user_login ) !== strtolower( $allowed ) ) ) {
 			self::fail();
 		}
 
 		wp_set_current_user( $user->ID );
 		wp_set_auth_cookie( $user->ID, false, is_ssl() );
-		Tabside_MCP_Store::log( 'login-link-use', 'user ' . $user->user_login, '' );
+		self::log_use( $user );
 		/** Gleiche Aktion wie bei einer normalen Anmeldung (Protokoll-Plugins usw.). */
 		do_action( 'wp_login', $user->user_login, $user );
 
 		wp_safe_redirect( admin_url( (string) $link['redirect'] ) );
 		exit;
+	}
+
+	/**
+	 * Protokoll wie Tabside_MCP_Store::log, auch ohne Plugin (MU-Datei).
+	 */
+	private static function log_use( WP_User $user ) {
+		if ( class_exists( 'Tabside_MCP_Store', false ) ) {
+			Tabside_MCP_Store::log( 'login-link-use', 'user ' . $user->user_login, '' );
+			return;
+		}
+		$name = '_tabside_mcp_audit_log';
+		$list = get_option( $name, array() );
+		$list = is_array( $list ) ? $list : array();
+		array_unshift(
+			$list,
+			array(
+				'time_gmt'  => gmdate( 'Y-m-d H:i:s' ),
+				'user'      => $user->user_login,
+				'ability'   => 'login-link-use',
+				'target'    => 'user ' . $user->user_login,
+				'backup_id' => '',
+			)
+		);
+		$list = array_slice( $list, 0, 500 );
+		if ( false === get_option( $name, false ) ) {
+			add_option( $name, $list, '', false );
+		} else {
+			update_option( $name, $list, false );
+		}
 	}
 
 	private static function confirm_page( $token, $user ) {
@@ -252,3 +350,5 @@ final class Tabside_MCP_Login_Link {
 		}
 	}
 }
+
+endif;
