@@ -1474,9 +1474,11 @@ final class Tabside_MCP_Admin {
 			return array(
 				'confirmed' => true,
 				'actions'   => array(),
+				'done'      => array(),
 				'diagnosis' => $diag,
 				'notes'     => $notes,
 				'verify'    => array( 'tmp_dir' => $diag['tmp_dir']['valid'] ),
+				'errors'    => array(),
 			);
 		}
 
