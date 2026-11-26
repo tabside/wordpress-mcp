@@ -183,8 +183,8 @@ def register_admin_tools(mcp: MCPServer, runner: ToolRunner) -> None:
 
     @mcp.tool(
         description=(
-            "Einmal-Anmeldelink (Magic Link) für den wp-admin ohne Passwort, für den WordPress-Benutzer, mit dem das Gateway auf der Seite angemeldet ist "
-            "(nie für andere Benutzer). Gültig ttl_minutes (1-30, Vorgabe 10) und nur einmal; der Link zeigt zuerst eine Bestätigungsseite, angemeldet wird erst mit dem Klick "
+            "Einmal-Anmeldelink (Magic Link) für den wp-admin ohne Passwort, für den WordPress-Benutzer, unter dem die Tools auf der Seite arbeiten "
+            "(WordPress-MCP: Benutzer des Anwendungspassworts, plesk-mcp: erster Administrator; nie für andere Benutzer). Gültig ttl_minutes (1-30, Vorgabe 10) und nur einmal; der Link zeigt zuerst eine Bestätigungsseite, angemeldet wird erst mit dem Klick "
             "auf \"Anmelden\" (Link-Vorschauen verbrauchen ihn nicht). redirect = Ziel im wp-admin nach dem Login, relativ (z.B. plugin-install.php?tab=upload). "
             "Den Link nur dem Benutzer zeigen, nie in Tickets, Mails oder Dateien schreiben. Erzeugen und Einlösen stehen im audit_log." + CONFIRM_DOC
         ),
