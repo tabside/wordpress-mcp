@@ -51,7 +51,8 @@ final class Tabside_MCP_Abilities {
 			self::definitions(),
 			Tabside_MCP_Elementor::definitions(),
 			Tabside_MCP_Site::definitions(),
-			Tabside_MCP_Admin::definitions()
+			Tabside_MCP_Admin::definitions(),
+			Tabside_MCP_Login_Link::definitions()
 		);
 	}
 

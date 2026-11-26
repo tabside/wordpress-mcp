@@ -596,3 +596,44 @@ def test_wptc_repair(wp):
     assert status["last_success"]["stale"] is True and any("Keine erfolgreiche Sicherung" in w for w in status["warnings"])
     again = ok(call(client, access, "wptc_repair", {**a, "start_backup": False}))
     assert again["preview"]["actions"] == []
+
+
+def test_login_link(wp):
+    client, access = wp
+    a = {"site": "test"}  # editor claude-mcp
+    assert "wp-admin" in err(call(client, access, "login_link_create", {**a, "redirect": "https://evil.example/x"}))
+    assert "wp-admin" in err(call(client, access, "login_link_create", {**a, "redirect": "../wp-config.php"}))
+
+    prev = ok(call(client, access, "login_link_create", {**a, "redirect": "edit.php?post_type=page"}))
+    assert prev["confirmed"] is False and prev["preview"]["user"] == "claude-mcp" and "url" not in prev
+
+    done = ok(call(client, access, "login_link_create", {**a, "ttl_minutes": 5, "redirect": "edit.php?post_type=page", "confirm": True}))
+    assert done["confirmed"] is True and done["user"] == "claude-mcp" and done["ttl_minutes"] == 5 and "audit_target" not in done
+    url = done["url"]
+    token_value = re.search(r"token=([A-Za-z0-9_-]+)", url).group(1)
+    assert len(token_value) >= 43
+
+    with httpx.Client(follow_redirects=False) as browser:
+        # GET only shows the confirmation page, it does not log in (link previews).
+        page = browser.get(url)
+        assert page.status_code == 200 and "Anmelden" in page.text and "claude-mcp" in page.text
+        assert not any(c.startswith("wordpress_logged_in") for c in browser.cookies)
+        assert "no-referrer" in page.headers.get("referrer-policy", "")
+        # A bad token is rejected.
+        assert browser.post(f"{WP_URL}/wp-login.php?action=tabside_mcp_link", data={"token": "x" * 43}).status_code == 403
+        # POST logs in and redirects to the target.
+        login = browser.post(f"{WP_URL}/wp-login.php?action=tabside_mcp_link", data={"token": token_value})
+        assert login.status_code == 302 and login.headers["location"].endswith("/wp-admin/edit.php?post_type=page")
+        assert any(c.startswith("wordpress_logged_in") for c in browser.cookies)
+        # Only once.
+        assert browser.post(f"{WP_URL}/wp-login.php?action=tabside_mcp_link", data={"token": token_value}).status_code == 403
+
+    log = ok(call(client, access, "audit_log", {**a, "limit": 5}))["entries"]
+    assert [e["ability"] for e in log[:2]] == ["login-link-use", "login-link-create"]
+    assert all(token_value not in str(e) for e in log)
+
+    # At most 3 open links per user: the oldest is dropped.
+    urls = [ok(call(client, access, "login_link_create", {**a, "confirm": True}))["url"] for _ in range(4)]
+    with httpx.Client(follow_redirects=False) as browser:
+        assert browser.get(urls[0]).status_code == 403
+        assert browser.get(urls[3]).status_code == 200

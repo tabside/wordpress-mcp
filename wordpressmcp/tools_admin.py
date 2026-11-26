@@ -180,3 +180,20 @@ def register_admin_tools(mcp: MCPServer, runner: ToolRunner) -> None:
     )
     async def audit_log(site: str, limit: int = 50, user: str | None = None) -> dict[str, Any]:
         return await runner.read(site, "audit_log", {"limit": limit, "user": user})
+
+    @mcp.tool(
+        description=(
+            "Einmal-Anmeldelink (Magic Link) für den wp-admin ohne Passwort, für den WordPress-Benutzer, mit dem das Gateway auf der Seite angemeldet ist "
+            "(nie für andere Benutzer). Gültig ttl_minutes (1-30, Vorgabe 10) und nur einmal; der Link zeigt zuerst eine Bestätigungsseite, angemeldet wird erst mit dem Klick "
+            "auf \"Anmelden\" (Link-Vorschauen verbrauchen ihn nicht). redirect = Ziel im wp-admin nach dem Login, relativ (z.B. plugin-install.php?tab=upload). "
+            "Den Link nur dem Benutzer zeigen, nie in Tickets, Mails oder Dateien schreiben. Erzeugen und Einlösen stehen im audit_log." + CONFIRM_DOC
+        ),
+        annotations=WRITE,
+    )
+    async def login_link_create(
+        site: str,
+        ttl_minutes: Annotated[int, Field(ge=1, le=30)] = 10,
+        redirect: str | None = None,
+        confirm: bool = False,
+    ) -> dict[str, Any]:
+        return await runner.write(site, "login_link_create", {"ttl_minutes": ttl_minutes, "redirect": redirect, "confirm": confirm})

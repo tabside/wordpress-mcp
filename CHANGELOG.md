@@ -1,5 +1,9 @@
 # Changelog
 
+## Plugin tabside-mcp 2.6.0 / Gateway 1.5.0
+
+* Neues Tool `login_link_create`: Einmal-Anmeldelink (Magic Link) für den wp-admin ohne Passwort, etwa um im Browser ein Plugin-ZIP hochzuladen. Nur für den WordPress-Benutzer, mit dem das Gateway angemeldet ist (keine zusätzlichen Rechte), gültig 1 bis 30 Minuten (Vorgabe 10), einmalig, höchstens 3 offene Links pro Benutzer. Gespeichert wird nur ein HMAC des Tokens (`wp_salt('auth')`) in der Option `_tabside_mcp_login_links` ohne Autoload. `wp-login.php?action=tabside_mcp_link` zeigt zuerst eine Bestätigungsseite, angemeldet wird erst per POST (Link-Vorschauen und Scanner lösen den Link nicht ein); danach Weiterleitung auf `redirect` (nur Pfade im wp-admin). Abschaltbar mit `TABSIDE_MCP_LOGIN_LINKS` bzw. Filter `tabside_mcp_login_links_enabled`. Erzeugen und Einlösen im `audit_log` (`login-link-create`, `login-link-use`), der Link selbst wird nirgends protokolliert. Vorschau ohne `confirm=true`.
+
 ## Plugin tabside-mcp 2.5.0 / Gateway 1.4.0
 
 * Neues Tool `elementor_template_create`: legt eine Elementor-Vorlage mit Vorlagentyp an (`template_type`, z.B. `loop-item`, `single-post`, `archive`, `section`, `container`, `header`, `footer`, `popup`). `post_create` mit `type=elementor_library` legte bisher nur einen Bibliotheks-Eintrag ohne `_elementor_template_type` an, Theme-Builder- und Loop-Vorlagen liessen sich so nicht erstellen. Angelegt wird über `documents->create()` von Elementor (Typ-Meta, Bibliotheks-Taxonomie, Standard-Einstellungen wie im wp-admin). Optional gleich mit Aufbau (`elements`, IDs werden neu vergeben und wie bei `elementor_insert_element` geprüft), Seiteneinstellungen (`page_settings`) und Anzeigebedingungen (`conditions`, nur Elementor Pro und nur bei Theme-Vorlagen und Popups). Ein unbekannter Typ liefert die Liste der auf der Seite möglichen Typen. Vorschau ohne `confirm=true`, danach `verify` und CSS-Neuaufbau, Eintrag im `audit_log`.

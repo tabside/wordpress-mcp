@@ -26,6 +26,8 @@ final class Tabside_MCP_Plugin {
 		}
 		self::$active = true;
 
+		Tabside_MCP_Login_Link::boot();
+
 		add_action( 'wp_abilities_api_categories_init', array( 'Tabside_MCP_Abilities', 'register_category' ) );
 		add_action( 'wp_abilities_api_init', array( 'Tabside_MCP_Abilities', 'register' ) );
 		add_action( 'mcp_adapter_init', array( __CLASS__, 'register_server' ) );
