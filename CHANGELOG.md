@@ -1,6 +1,10 @@
 # Changelog
 
-## Plugin tabside-mcp 2.6.0 / Gateway 1.5.0
+## Plugin tabside-mcp 2.6.1 / Gateway 1.5.0
+
+2.6.0 enthielt nur den ersten Stand (ohne MU-Plugin-Handler und ohne bedingte Klassendeklaration), 2.6.1 ist der vollständige Stand unten.
+
+## Plugin tabside-mcp 2.6.0 (erster Stand)
 
 * Neues Tool `login_link_create`: Einmal-Anmeldelink (Magic Link) für den wp-admin ohne Passwort, etwa um im Browser ein Plugin-ZIP hochzuladen. Nur für den WordPress-Benutzer, mit dem das Gateway angemeldet ist (keine zusätzlichen Rechte), gültig 1 bis 30 Minuten (Vorgabe 10), einmalig, höchstens 3 offene Links pro Benutzer. Gespeichert wird nur ein HMAC des Tokens (`wp_salt('auth')`) in der Option `_tabside_mcp_login_links` ohne Autoload. `wp-login.php?action=tabside_mcp_link` zeigt zuerst eine Bestätigungsseite, angemeldet wird erst per POST (Link-Vorschauen und Scanner lösen den Link nicht ein); danach Weiterleitung auf `redirect` (nur Pfade im wp-admin). Abschaltbar mit `TABSIDE_MCP_LOGIN_LINKS` bzw. Filter `tabside_mcp_login_links_enabled`. Erzeugen und Einlösen im `audit_log` (`login-link-create`, `login-link-use`), der Link selbst wird nirgends protokolliert. Vorschau ohne `confirm=true`.
 * Für den plesk-mcp (Ausführung per WP-CLI ohne aktives Plugin): Ist tabside-mcp auf der Seite nicht aktiv, legt `login-link-create` das Must-Use-Plugin `wp-content/mu-plugins/tabside-mcp-login-link.php` an, sofern der Quelltext über den Filter `tabside_mcp_login_link_mu_source` kommt (nur plesk-mcp). Es enthält nur die Klasse `Tabside_MCP_Login_Link` und löscht sich selbst, sobald kein offener Link mehr da ist. Die Klasse ist darum bedingt deklariert. Ohne Plugin und ohne MU-Quelltext gibt es einen Fehler statt eines Links, der nicht eingelöst werden könnte. Rückgabe `handler`: `plugin`, `mu-plugin` oder `mu-plugin-created`.
